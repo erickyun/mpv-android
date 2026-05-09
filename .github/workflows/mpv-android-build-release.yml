@@ -16,19 +16,32 @@ on:
       - sfan5/ytdl
   workflow_dispatch:
 
+# Grant the workflow permission to create and modify releases.  Without
+# explicitly setting `contents: write`, the default GITHUB_TOKEN has
+# read-only access which causes `actions/create-release` to fail with
+# “Resource not accessible by integration”.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Force GitHub-hosted JavaScript actions to use Node.js 24.  GitHub
+    # will default to Node 24 in June 2026, but setting this now
+    # suppresses deprecation warnings for actions using Node 20.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
     steps:
       # Check out the repository at the ref that triggered the workflow.
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Set up a Java JDK.  mpv‑android requires Java 11+ to build,
       # and OpenJDK 17 is available on GitHub’s runners.
       - name: Set up JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
