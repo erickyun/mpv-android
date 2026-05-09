@@ -115,22 +115,26 @@ jobs:
       # change its output directory across versions, search for the
       # universal debug APK using find.  The result is exposed via
       # the "apk_path" output and used later when uploading the asset.
-      - name: Identify universal debug APK
+      - name: Identify debug APK
         id: find_apk
         run: |
-          # Search for a universal debug APK produced by Gradle. The
-          # universal variant has "universal" and "debug" in its filename
-          # and lives under app/build/outputs/apk/. The find command returns
-          # the first matching file, if any. If no file is found, the step
-          # fails with an explicit error so later steps (such as uploading
-          # the asset) do not run with an empty path.
-          APK_PATH=$(find app/build/outputs/apk -type f -name "*universal*debug*.apk" -print -quit || true)
+          # Search for any debug APK produced by Gradle.  The debug variants
+          # typically have "debug" in their filename (e.g., app-default-universal-debug.apk
+          # or app-default-arm64-v8a-debug.apk) and reside under app/build/outputs/apk/.
+          # We search for the first matching file to use as the release asset.
+          APK_PATH=$(find app/build/outputs/apk -type f -name "*debug*.apk" -print -quit || true)
           echo "Found APK: $APK_PATH"
+          # If no APK is found, fail the step with a clear error.  This prevents
+          # subsequent steps from running with an empty path.
           if [ -z "$APK_PATH" ]; then
-            echo "::error::Universal debug APK not found! Ensure Gradle produced a universal debug APK under app/build/outputs/apk/." >&2
+            echo "::error::No debug APK found! Ensure Gradle produced a debug APK under app/build/outputs/apk/." >&2
             exit 1
           fi
+          # Expose both the full path and just the filename so we can set
+          # asset_name appropriately in a later step.
+          APK_NAME=$(basename "$APK_PATH")
           echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
 
       # Create a new GitHub release.  The tag is based on the branch
       # name and the run number to ensure uniqueness.
@@ -155,5 +159,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ steps.find_apk.outputs.apk_path }}
-          asset_name: mpv-android-${{ github.run_number }}-universal.apk
+          # Name the asset using the actual filename discovered above.  This
+          # avoids mismatches when the build produces non-universal debug APKs.
+          asset_name: ${{ steps.find_apk.outputs.apk_name }}
           asset_content_type: application/vnd.android.package-archive
