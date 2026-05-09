@@ -115,23 +115,30 @@ jobs:
       # change its output directory across versions, search for the
       # universal debug APK using find.  The result is exposed via
       # the "apk_path" output and used later when uploading the asset.
-      - name: Identify debug APK
+      - name: Identify APK to upload
         id: find_apk
         run: |
-          # Search for any debug APK produced by Gradle.  The debug variants
-          # typically have "debug" in their filename (e.g., app-default-universal-debug.apk
-          # or app-default-arm64-v8a-debug.apk) and reside under app/build/outputs/apk/.
-          # We search for the first matching file to use as the release asset.
-          APK_PATH=$(find app/build/outputs/apk -type f -name "*debug*.apk" -print -quit || true)
-          echo "Found APK: $APK_PATH"
-          # If no APK is found, fail the step with a clear error.  This prevents
-          # subsequent steps from running with an empty path.
+          # Search for a universal debug APK first.  When splits.abi.universalApk
+          # is enabled, the Android Gradle Plugin writes the universal debug APK
+          # under app/build/outputs/universal_apk/debug/ with a name like
+          # app-debug-universal.apk【563587012450480†L99-L104】.  If found, we will
+          # use this file as the release asset.
+          APK_PATH=""
+          if [ -d app/build/outputs/universal_apk ]; then
+            APK_PATH=$(find app/build/outputs/universal_apk -type f -name "*universal*.apk" -print -quit || true)
+          fi
+          # Fallback: if no universal APK was found, fall back to any debug APK
+          # under app/build/outputs/apk (e.g., architecture‑specific builds).  This
+          # ensures that an APK is always uploaded even if the universal variant
+          # isn’t generated.
           if [ -z "$APK_PATH" ]; then
-            echo "::error::No debug APK found! Ensure Gradle produced a debug APK under app/build/outputs/apk/." >&2
+            APK_PATH=$(find app/build/outputs/apk -type f -name "*debug*.apk" -print -quit || true)
+          fi
+          echo "Found APK: $APK_PATH"
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK was found! Ensure Gradle produced an APK under app/build/outputs/." >&2
             exit 1
           fi
-          # Expose both the full path and just the filename so we can set
-          # asset_name appropriately in a later step.
           APK_NAME=$(basename "$APK_PATH")
           echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
