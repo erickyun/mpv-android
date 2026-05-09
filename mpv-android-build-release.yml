@@ -1,0 +1,136 @@
+name: Build and Release mpv‑android (sfan5/ytdl)
+
+# This workflow builds the native libraries and Android app for the
+# `sfan5/ytdl` branch of mpv‑android and automatically uploads the
+# resulting APK to a new GitHub release.  It follows the build
+# instructions provided in the project's `buildscripts/README.md` —
+# namely running `download.sh` to fetch the Android SDK/NDK and
+# dependencies and then invoking `buildall.sh` to compile libmpv and
+# FFmpeg for the desired architectures before assembling the app with
+# Gradle【842196050300886†L10-L46】.  The universal debug APK is then
+# attached to the release.
+
+on:
+  push:
+    branches:
+      - sfan5/ytdl
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the repository at the ref that triggered the workflow.
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Set up a Java JDK.  mpv‑android requires Java 11+ to build,
+      # and OpenJDK 17 is available on GitHub’s runners.
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Install build prerequisites such as autoconf, libtool and meson.
+      # The `download.sh` script normally installs these itself on
+      # Debian/Ubuntu systems, but in CI we set `CI=1` to prevent it
+      # from invoking sudo.  Therefore we install them here manually.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -y
+          # Required tools for compiling native dependencies and building mpv‑android
+          sudo apt-get install -y \
+            autoconf automake libtool pkg-config meson \
+            ninja-build unzip wget git yasm zip tar patch gperf \
+            build-essential libglib2.0-dev libgl1-mesa-dev \
+            python3 python3-pip
+
+      # Upgrade Meson and Ninja to meet the minimum version required by
+      # fontconfig (>=1.6.1).  The Ubuntu package currently provides
+      # meson 1.3.x, which is too old and causes the build to fail, as
+      # seen in the action log.  Installing via pip ensures a recent
+      # release is used.
+      - name: Upgrade Meson and Ninja via pip
+        run: |
+          python3 -m pip install --upgrade --break-system-packages 'meson>=1.6.1' 'ninja>=1.10'
+
+      # Download the Android SDK/NDK and third‑party libraries.  The
+      # `download.sh` script will download the correct Android SDK and
+      # matching NDK version along with FFmpeg, mpv and other
+      # dependencies【842196050300886†L10-L27】.  Setting `CI=1` skips
+      # the script’s own `apt-get` calls since we pre‑installed the
+      # packages above.
+      - name: Download Android SDK, NDK and mpv/ffmpeg dependencies
+        env:
+          CI: '1'
+          IN_CI: '1'
+        run: |
+          cd buildscripts
+          chmod +x download.sh
+          ./download.sh
+
+      # Build the native components for the target architectures.  By
+      # default `buildall.sh` only builds for armv7l; run it with
+      # `--arch` to build additional ABIs【842196050300886†L38-L46】.
+      - name: Build native libraries for ARM architectures
+        env:
+          CI: '1'
+          IN_CI: '1'
+        run: |
+          cd buildscripts
+          chmod +x buildall.sh
+          # Build for 64‑bit ARM first (faster on modern devices)
+          ./buildall.sh --arch arm64 mpv
+          # Optionally build 32‑bit ARM if needed; comment out to speed up CI
+          ./buildall.sh mpv
+
+      # Assemble the Android APK.  Gradle will pick up the native
+      # libraries built above and output a universal debug APK under
+      # `app/build/outputs/apk/default/debug/`.  We use the debug
+      # variant here because signing for release requires a keystore.
+      - name: Build Android APK
+        env:
+          ANDROID_HOME: ${{ github.workspace }}/buildscripts/sdk/android-sdk-linux
+          ANDROID_SDK_ROOT: ${{ github.workspace }}/buildscripts/sdk/android-sdk-linux
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # Locate the generated universal debug APK.  Because Gradle may
+      # change its output directory across versions, search for the
+      # universal debug APK using find.  The result is exposed via
+      # the "apk_path" output and used later when uploading the asset.
+      - name: Identify APK path
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs -type f -name "*universal*-debug*.apk" -print -quit)
+          echo "Found APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      # Create a new GitHub release.  The tag is based on the branch
+      # name and the run number to ensure uniqueness.
+      - name: Create GitHub release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}-${{ github.run_number }}
+          release_name: "mpv-android build ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      # Upload the generated APK to the release.  The path points to
+      # the universal debug APK produced when `universalApk` is set in
+      # the Gradle configuration.
+      - name: Upload APK asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_apk.outputs.apk_path }}
+          asset_name: mpv-android-${{ github.run_number }}-universal.apk
+          asset_content_type: application/vnd.android.package-archive
