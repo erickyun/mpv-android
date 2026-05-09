@@ -115,12 +115,22 @@ jobs:
       # change its output directory across versions, search for the
       # universal debug APK using find.  The result is exposed via
       # the "apk_path" output and used later when uploading the asset.
-      - name: Identify APK path
+      - name: Identify universal debug APK
         id: find_apk
         run: |
-          APK_PATH=$(find app/build/outputs -type f -name "*universal*-debug*.apk" -print -quit)
+          # Search for a universal debug APK produced by Gradle. The
+          # universal variant has "universal" and "debug" in its filename
+          # and lives under app/build/outputs/apk/. The find command returns
+          # the first matching file, if any. If no file is found, the step
+          # fails with an explicit error so later steps (such as uploading
+          # the asset) do not run with an empty path.
+          APK_PATH=$(find app/build/outputs/apk -type f -name "*universal*debug*.apk" -print -quit || true)
           echo "Found APK: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::Universal debug APK not found! Ensure Gradle produced a universal debug APK under app/build/outputs/apk/." >&2
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
       # Create a new GitHub release.  The tag is based on the branch
       # name and the run number to ensure uniqueness.
