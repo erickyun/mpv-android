@@ -32,8 +32,7 @@ replace_once(
 ''',
 )
 
-# Pass torrent URI schemes through to mpv; the bundled Lua hook then rewrites
-# them to the configured TorrServer HTTP playlist endpoint.
+# Pass torrent URI schemes through the normal intent parser.
 replace_once(
     activity,
     '''            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh",
@@ -43,6 +42,25 @@ replace_once(
     '''            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh",
             "tcp", "udp", "lavf", "ftp", "magnet", "torrs"
             -> data.toString()
+''',
+)
+
+# Resolve the first launch before libmpv sees the magnet URL. This does not
+# depend on mpv's Lua script auto-loading behavior.
+replace_once(
+    activity,
+    '''        val filepath = parsePathFromIntent(intent)
+''',
+    '''        val filepath = parsePathFromIntent(intent)?.let { TorrServer.resolve(this, it) }
+''',
+)
+
+# Do the same when a magnet is shared while MPVActivity already exists.
+replace_once(
+    activity,
+    '''        val filepath = intent?.let { parsePathFromIntent(it) }
+''',
+    '''        val filepath = intent?.let { parsePathFromIntent(it) }?.let { TorrServer.resolve(this, it) }
 ''',
 )
 
@@ -97,4 +115,4 @@ replace_once(
 ''',
 )
 
-print("Applied TorrServer magnet/Open URL/share/HTTP/idle patches")
+print("Applied TorrServer direct routing, magnet/Open URL/share/HTTP/idle patches")
