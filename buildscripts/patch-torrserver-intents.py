@@ -13,6 +13,8 @@ def replace_once(path: Path, old: str, new: str) -> None:
 root = Path(__file__).resolve().parents[1]
 activity = root / "app/src/main/java/is/xyz/mpv/MPVActivity.kt"
 utils = root / "app/src/main/java/is/xyz/mpv/Utils.kt"
+base_view = root / "app/src/main/java/is/xyz/mpv/BaseMPVView.kt"
+manifest = root / "app/src/main/AndroidManifest.xml"
 
 # ACTION_SEND text containing magnet: is an opaque URI, so do not reject it
 # merely because Android reports it as non-hierarchical.
@@ -75,4 +77,24 @@ replace_once(
 ''',
 )
 
-print("Applied TorrServer magnet/Open URL/share intent patches")
+# Keep libmpv alive after a failed first load. With idle=once it shuts down and
+# MPVActivity immediately finishes, which looks like an application crash.
+replace_once(
+    base_view,
+    '''        MPVLib.setOptionString("idle", "once")
+''',
+    '''        MPVLib.setOptionString("idle", "yes")
+''',
+)
+
+# TorrServer commonly runs on localhost or a LAN IP over plain HTTP.
+replace_once(
+    manifest,
+    '''        android:allowBackup="true"
+''',
+    '''        android:allowBackup="true"
+        android:usesCleartextTraffic="true"
+''',
+)
+
+print("Applied TorrServer magnet/Open URL/share/HTTP/idle patches")
