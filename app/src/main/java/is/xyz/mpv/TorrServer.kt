@@ -5,11 +5,38 @@ import android.preference.PreferenceManager
 import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 internal object TorrServer {
     const val PREF_ENABLED = "torrserver_enabled"
     const val PREF_SERVER = "torrserver_server"
     const val DEFAULT_SERVER = "http://127.0.0.1:8090"
+
+    fun resolve(context: Context, source: String): String {
+        val lower = source.lowercase()
+        val isTorrent = lower.startsWith("magnet:") ||
+                lower.startsWith("torrs://") ||
+                ((lower.startsWith("http://") || lower.startsWith("https://")) &&
+                        Regex("\\.torrent([?#].*)?$").containsMatchIn(lower))
+        if (!isTorrent)
+            return source
+
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        if (!preferences.getBoolean(PREF_ENABLED, true))
+            return source
+
+        val configuredServer = preferences.getString(PREF_SERVER, DEFAULT_SERVER)
+            ?.trim()
+            ?.replace("\r", "")
+            ?.replace("\n", "")
+            .orEmpty()
+        val server = configuredServer.ifBlank { DEFAULT_SERVER }.trimEnd('/')
+        val encoded = URLEncoder.encode(source, StandardCharsets.UTF_8.name())
+        val resolved = "$server/stream/torrent.m3u?link=$encoded&m3u"
+        Log.i(TAG, "Routing torrent through TorrServer: $resolved")
+        return resolved
+    }
 
     fun install(context: Context, configDir: String) {
         try {
