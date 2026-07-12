@@ -35,6 +35,9 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Apply TorrServer URL and share fixes
+        run: python buildscripts/patch-torrserver-intents.py
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -96,6 +99,8 @@ jobs:
 
           - yt-dlp/YTDL support with embedded Python 3.13
           - TorrServer magnet and remote .torrent streaming
+          - Magnet links accepted in Open URL
+          - Magnet links accepted through Android share actions
           - Configurable TorrServer address under Settings > Advanced
           - ARM64 and universal installable debug APKs
 
