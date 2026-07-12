@@ -8,6 +8,21 @@
         android:summary="@string/pref_gpu_next_summary"
         android:title="@string/pref_gpu_next_title" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        app:iconSpaceReserved="false"
+        android:key="torrserver_enabled"
+        android:summary="@string/pref_torrserver_enabled_summary"
+        android:title="@string/pref_torrserver_enabled_title" />
+
+    <EditTextPreference
+        android:defaultValue="@string/pref_torrserver_server_default"
+        android:dependency="torrserver_enabled"
+        android:key="torrserver_server"
+        android:title="@string/pref_torrserver_server_title"
+        app:iconSpaceReserved="false"
+        app:useSimpleSummaryProvider="true" />
+
     <is.xyz.mpv.preferences.ConfigEditDialogPreference
         app:iconSpaceReserved="false"
         app:filename="mpv.conf"

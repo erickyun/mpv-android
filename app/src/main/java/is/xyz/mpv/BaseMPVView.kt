@@ -22,6 +22,8 @@ abstract class BaseMPVView(context: Context, attrs: AttributeSet) : SurfaceView(
         MPVLib.setOptionString("config-dir", configDir)
         for (opt in arrayOf("gpu-shader-cache-dir", "icc-cache-dir"))
             MPVLib.setOptionString(opt, cacheDir)
+
+        TorrServer.install(context, configDir)
         initOptions()
 
         MPVLib.init()

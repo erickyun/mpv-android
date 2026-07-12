@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_torrserver_enabled_title">Use TorrServer for torrents</string>
+    <string name="pref_torrserver_enabled_summary">Open magnet and remote .torrent links through TorrServer.</string>
+    <string name="pref_torrserver_server_title">TorrServer address</string>
+    <string name="pref_torrserver_server_default" translatable="false">http://127.0.0.1:8090</string>
+</resources>
