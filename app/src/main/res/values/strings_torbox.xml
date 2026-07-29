@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_torbox_enabled_title">Use TorBox for torrents</string>
+    <string name="pref_torbox_enabled_summary">Resolve magnet links through TorBox. TorBox takes priority over TorrServer when both are enabled.</string>
+    <string name="pref_torbox_api_key_title">TorBox API key</string>
+    <string name="pref_torbox_api_key_summary">Stored locally and used only to communicate with the TorBox API.</string>
+    <string name="pref_torbox_api_key_dialog">Paste the API key from your TorBox account settings.</string>
+</resources>
