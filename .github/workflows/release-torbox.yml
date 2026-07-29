@@ -1,0 +1,121 @@
+name: Build and release mpv+ytdl+TorBox
+
+on:
+  push:
+    branches:
+      - agent/torbox-ytdl
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: torbox-ytdl-release
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    name: Build ARM64 APK and publish release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Apply torrent URL and Android share fixes
+        run: python buildscripts/patch-torrserver-intents.py
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake pkg-config libtool ninja-build \
+            gperf zip unzip make perl wget xz-utils bzip2
+          python -m pip install --upgrade pip meson
+
+      - name: Download Android SDK, NDK and native sources
+        working-directory: buildscripts
+        env:
+          IN_CI: '1'
+          WGET: wget
+        run: |
+          ./include/download-sdk.sh
+          ./include/download-deps.sh
+
+      - name: Build ARM64 mpv, Python and APK
+        working-directory: buildscripts
+        env:
+          DONT_BUILD_RELEASE: '1'
+        run: ./buildall.sh --arch arm64
+
+      - name: Prepare installable APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+
+          ARM64_APK=$(find app/build/outputs/apk/default/debug -maxdepth 1 -name '*arm64-v8a-debug.apk' -print -quit)
+          UNIVERSAL_APK=$(find app/build/outputs/apk/default/debug -maxdepth 1 -name '*universal-debug.apk' -print -quit)
+
+          test -n "$ARM64_APK"
+          test -n "$UNIVERSAL_APK"
+
+          cp "$ARM64_APK" release/mpv-ytdl-torbox-arm64-v8a.apk
+          cp "$UNIVERSAL_APK" release/mpv-ytdl-torbox-universal.apk
+          sha256sum release/*.apk > release/SHA256SUMS.txt
+          ls -lh release
+
+      - name: Upload Actions artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mpv-ytdl-torbox-arm64
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create or update GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="torbox-ytdl-${GITHUB_RUN_NUMBER}"
+
+          cat > release-notes.md <<EOF
+          Custom mpv-android build containing:
+
+          - yt-dlp/YTDL support with embedded Python 3.13
+          - TorBox magnet resolution and direct streaming
+          - TorBox enable/disable switch under Settings > Advanced
+          - Password-style TorBox API key field under Settings > Advanced
+          - Automatic selection of the largest playable video in a torrent
+          - TorrServer fallback when TorBox is disabled or unavailable
+          - Magnet links accepted in Open URL and Android share actions
+          - ARM64 and universal installable debug APKs
+
+          Source commit: ${GITHUB_SHA}
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "mpv+ytdl+TorBox build ${GITHUB_RUN_NUMBER}" \
+              --notes-file release-notes.md \
+              --prerelease
+          fi
