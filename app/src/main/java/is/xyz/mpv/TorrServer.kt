@@ -22,6 +22,14 @@ internal object TorrServer {
         if (!isTorrent)
             return source
 
+        // TorBox is the preferred provider when it is enabled and configured.
+        // Returning null means TorBox is disabled, unavailable, or unsupported,
+        // so the existing TorrServer path remains a transparent fallback.
+        TorBox.resolve(context, source)?.let { resolved ->
+            Log.i(TAG, "Routing torrent through TorBox")
+            return resolved
+        }
+
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         if (!preferences.getBoolean(PREF_ENABLED, true))
             return source
