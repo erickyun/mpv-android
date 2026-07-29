@@ -23,6 +23,22 @@
         app:iconSpaceReserved="false"
         app:useSimpleSummaryProvider="true" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        app:iconSpaceReserved="false"
+        android:key="torbox_enabled"
+        android:summary="@string/pref_torbox_enabled_summary"
+        android:title="@string/pref_torbox_enabled_title" />
+
+    <EditTextPreference
+        android:dependency="torbox_enabled"
+        android:dialogMessage="@string/pref_torbox_api_key_dialog"
+        android:inputType="textPassword"
+        android:key="torbox_api_key"
+        android:summary="@string/pref_torbox_api_key_summary"
+        android:title="@string/pref_torbox_api_key_title"
+        app:iconSpaceReserved="false" />
+
     <is.xyz.mpv.preferences.ConfigEditDialogPreference
         app:iconSpaceReserved="false"
         app:filename="mpv.conf"
