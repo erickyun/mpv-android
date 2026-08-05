@@ -13,5 +13,10 @@ print('Pinned UILaunchStoryboardName=LaunchScreen in Xcode build settings.')
 player_patch = Path(__file__).with_name('fix-ios-player-ux-v2.py')
 if not player_patch.is_file():
     raise SystemExit(f'Missing player UX patch: {player_patch}')
+source = player_patch.read_text()
+source = source.replace(
+    '        metalLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]\n',
+    ''
+)
 namespace = {'__name__': '__main__', '__file__': str(player_patch)}
-exec(compile(player_patch.read_text(), str(player_patch), 'exec'), namespace)
+exec(compile(source, str(player_patch), 'exec'), namespace)
