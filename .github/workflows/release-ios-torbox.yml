@@ -6,7 +6,7 @@ on:
       - agent/ios-torbox
     paths:
       - "ios/**"
-      - ".github/source/MPVTorBox-source.tar.gz.b64"
+      - ".github/source/ios-player-v3.part*"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
 
@@ -27,68 +27,71 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Extract iOS source
+      - name: Extract and verify iOS source
         working-directory: ios
         run: |
           set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
           python3 - <<'PY'
           from pathlib import Path
           import base64
-          encoded = Path('../.github/source/MPVTorBox-source.tar.gz.b64').read_text().strip()
-          Path('MPVTorBox-source.decoded.tar.gz').write_bytes(base64.b64decode(encoded, validate=True))
+          encoded = Path('MPVTorBox-source.tar.xz.b64').read_text().strip()
+          Path('MPVTorBox-source.tar.xz').write_bytes(base64.b64decode(encoded, validate=True))
           PY
-          gzip -t MPVTorBox-source.decoded.tar.gz
-          tar -xzf MPVTorBox-source.decoded.tar.gz
+          xz -t MPVTorBox-source.tar.xz
+          tar -xJf MPVTorBox-source.tar.xz
+          test -f MPVTorBox/Views/PlayerScreen.swift
+          test -f MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'profile=high-quality' MPVTorBox/Utilities/MPVConfigManager.swift
 
-      - name: Improve yt-dlp stream selection
-        working-directory: ios
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('MPVTorBox/YTDLPService.swift')
-          text = path.read_text()
-          declaration = 'let (formats, _) = try await youtubeDL.extractInfo(url: url)'
-          filter_line = 'let progressive = formats.filter { format in'
-          if declaration not in text or filter_line not in text:
-              raise SystemExit('Expected yt-dlp resolver source was not found')
-          text = text.replace(
-              declaration,
-              'let (selectedFormats, info) = try await youtubeDL.extractInfo(url: url)',
-              1,
-          )
-          text = text.replace(
-              filter_line,
-              'var formats = info.formats\n        formats.append(contentsOf: selectedFormats)\n\n        let progressive = formats.filter { format in',
-              1,
-          )
-          path.write_text(text)
-          PY
-
-      - name: Generate iOS app icon
+      - name: Generate official MPV app icon
         working-directory: ios
         run: |
           mkdir -p MPVTorBox/Assets.xcassets/AppIcon.appiconset
           python3 - <<'PY'
           import struct, zlib
           width = height = 1024
-          rows = []
+          colors = {
+              'bg': (30, 15, 31),
+              'outer': (229, 229, 229),
+              'purple': (103, 33, 104),
+              'dark': (66, 1, 67),
+              'inner': (221, 219, 221),
+              'play': (105, 31, 105),
+          }
+          def inside_circle(px, py, cx, cy, r):
+              return (px - cx) ** 2 + (py - cy) ** 2 <= r * r
+          def inside_triangle(px, py, a, b, c):
+              def sign(p1, p2, p3):
+                  return (p1[0]-p3[0])*(p2[1]-p3[1])-(p2[0]-p3[0])*(p1[1]-p3[1])
+              p=(px,py)
+              d1,d2,d3=sign(p,a,b),sign(p,b,c),sign(p,c,a)
+              return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+          rows=[]
           for y in range(height):
-              row = bytearray()
+              row=bytearray()
               for x in range(width):
-                  r, g, b = 18, 28, 48
-                  if 320 <= x <= 420 and 300 <= y <= 724:
-                      r, g, b = 255, 255, 255
-                  if 420 < x <= 730 and abs(y - 512) <= (x - 420) * 0.68:
-                      r, g, b = 255, 255, 255
-                  if (x - 770) ** 2 + (y - 265) ** 2 <= 52 ** 2:
-                      r, g, b = 82, 224, 182
-                  row.extend((r, g, b, 255))
-              rows.append(b'\x00' + bytes(row))
-          raw = b''.join(rows)
-          def chunk(kind, data):
-              return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
-          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
-          open('MPVTorBox/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png', 'wb').write(png)
+                  samples=[]
+                  for sy in (0.25,0.75):
+                      for sx in (0.25,0.75):
+                          px,py=x+sx,y+sy
+                          color=colors['bg']
+                          if inside_circle(px,py,512,512,408): color=colors['outer']
+                          if inside_circle(px,py,523,500,379): color=colors['purple']
+                          if inside_circle(px,py,545,475,292): color=colors['dark']
+                          if inside_circle(px,py,505,514,188): color=colors['inner']
+                          if inside_triangle(px,py,(457,425),(457,603),(606,512)): color=colors['play']
+                          samples.append(color)
+                  rgb=tuple(sum(c[i] for c in samples)//len(samples) for i in range(3))
+                  row.extend((*rgb,255))
+              rows.append(b'\x00'+bytes(row))
+          raw=b''.join(rows)
+          def chunk(kind,data):
+              return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+          png=(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,6,0,0,0))+
+               chunk(b'IDAT',zlib.compress(raw,9))+chunk(b'IEND',b''))
+          open('MPVTorBox/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png','wb').write(png)
           PY
           cat > MPVTorBox/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
           {
@@ -150,8 +153,8 @@ jobs:
         run: |
           if test -f xcodebuild.log; then
             echo "## Compiler diagnostics" >> "$GITHUB_STEP_SUMMARY"
-            grep -nE "(^|[[:space:]])(error:|fatal error:)" xcodebuild.log | tail -100 | tee compiler-errors.txt || true
-            sed -n '1,200p' compiler-errors.txt >> "$GITHUB_STEP_SUMMARY" || true
+            grep -nE "(^|[[:space:]])(error:|fatal error:)" xcodebuild.log | tail -160 | tee compiler-errors.txt || true
+            sed -n '1,240p' compiler-errors.txt >> "$GITHUB_STEP_SUMMARY" || true
           fi
 
       - name: Upload build log
@@ -200,6 +203,6 @@ jobs:
             ios/release/MPVTorBox-iOS-unsigned.ipa \
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
-            --title "MPV TorBox yt-dlp iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "Unsigned iPhone/iPad IPA with editable mpv.conf/input.conf, high-quality profile, local yt-dlp extraction, TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Requires iOS 16+. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
+            --title "MPV TorBox iOS ${GITHUB_RUN_NUMBER}" \
+            --notes "Major mpv-android-style iOS player update: edge-to-edge landscape playback, seek slider and gestures, video/audio/subtitle track selection, external subtitles, three-level frame-drop statistics, local files, playback speed and scaling controls, editable mpv.conf/input.conf with profile=high-quality, local yt-dlp, TorBox, TorrServer fallback, and the official MPV logo icon. Requires iOS 16+. Unsigned IPA." \
             --prerelease
