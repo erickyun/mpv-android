@@ -135,7 +135,7 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
-          LAUNCH_RESOURCE="$(find "$APP_PATH" -type d -name 'LaunchScreen.storyboardc' -print -quit)"
+          LAUNCH_RESOURCE="$(find "$APP_PATH" -name 'LaunchScreen.storyboardc' -print -quit)"
           test -n "$LAUNCH_RESOURCE"
           echo "Verified compiled launch screen: $LAUNCH_RESOURCE"
           /usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$APP_PATH/Info.plist" | grep -qx 'LaunchScreen'
