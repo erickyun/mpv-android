@@ -9,6 +9,7 @@ on:
       - ".github/source/ios-player-v3.part*"
       - ".github/source/fix-ios-swift6.py"
       - ".github/source/fix-ios-fullscreen-install.py"
+      - ".github/source/fix-ios-launch-build-setting.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
@@ -56,8 +57,10 @@ jobs:
         working-directory: ios
         run: |
           python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
           test -f MPVTorBox/LaunchScreen.storyboard
           grep -q 'UILaunchStoryboardName' MPVTorBox/Info.plist
+          grep -q 'INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen' project.yml
           grep -q 'installation_marker_v1' MPVTorBox/AppSettings.swift
 
       - name: Generate official MPV app icon
@@ -137,8 +140,17 @@ jobs:
           test -n "$APP_PATH"
           grep -qE 'CompileStoryboard .*/MPVTorBox/LaunchScreen\.storyboard' xcodebuild.log
           grep -qE -- '--link .*/MPVTorBox\.app .*/LaunchScreen\.storyboardc' xcodebuild.log
-          /usr/bin/plutil -extract UILaunchStoryboardName raw -o - "$APP_PATH/Info.plist" | grep -qx 'LaunchScreen'
-          echo "Verified compiled and linked LaunchScreen with UILaunchStoryboardName=LaunchScreen"
+          python3 - "$APP_PATH/Info.plist" <<'PY'
+          import plistlib
+          import sys
+          path = sys.argv[1]
+          with open(path, 'rb') as stream:
+              info = plistlib.load(stream)
+          actual = info.get('UILaunchStoryboardName')
+          if actual != 'LaunchScreen':
+              raise SystemExit(f'Compiled Info.plist has UILaunchStoryboardName={actual!r}')
+          print('Verified compiled Info.plist: UILaunchStoryboardName=LaunchScreen')
+          PY
           rm -rf Payload release
           mkdir -p Payload release
           cp -R "$APP_PATH" Payload/MPVTorBox.app
