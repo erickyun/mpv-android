@@ -8,6 +8,7 @@ on:
       - "ios/**"
       - ".github/source/ios-player-v3.part*"
       - ".github/source/fix-ios-swift6.py"
+      - ".github/source/fix-ios-fullscreen-install.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
@@ -50,6 +51,14 @@ jobs:
       - name: Apply Swift 6 compatibility fixes
         working-directory: ios
         run: python3 ../.github/source/fix-ios-swift6.py
+
+      - name: Apply iPhone full-screen and reinstall reset fixes
+        working-directory: ios
+        run: |
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          test -f MPVTorBox/LaunchScreen.storyboard
+          grep -q 'UILaunchStoryboardName' MPVTorBox/Info.plist
+          grep -q 'installation_marker_v1' MPVTorBox/AppSettings.swift
 
       - name: Generate official MPV app icon
         working-directory: ios
@@ -126,6 +135,8 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
+          test -d "$APP_PATH/LaunchScreen.storyboardc"
+          /usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$APP_PATH/Info.plist" | grep -qx 'LaunchScreen'
           rm -rf Payload release
           mkdir -p Payload release
           cp -R "$APP_PATH" Payload/MPVTorBox.app
@@ -152,5 +163,5 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV TorBox iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "Major mpv-android-style iOS player update: edge-to-edge landscape playback, seek slider and gestures, video/audio/subtitle track selection, external subtitles, three-level frame-drop statistics, local files, playback speed and scaling controls, editable mpv.conf/input.conf with profile=high-quality, local yt-dlp, TorBox, TorrServer fallback, and the official MPV logo icon. Requires iOS 16+. Unsigned IPA." \
+            --notes "Fixes iPhone compatibility-mode letterboxing with a compiled LaunchScreen storyboard. Adds fresh-install detection that erases stale Keychain/UserDefaults/MPVConfig data, plus a manual Erase all settings action. Retains the mpv-android-style player, local files, tracks, stats, TorBox, TorrServer, yt-dlp, and MPV icon. Requires iOS 16+. Unsigned IPA." \
             --prerelease
