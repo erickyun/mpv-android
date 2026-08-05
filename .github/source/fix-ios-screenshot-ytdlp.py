@@ -165,5 +165,14 @@ replace_once(
         DEBUG_INFORMATION_FORMAT: dwarf
 '''
 )
+replace_once(
+    project,
+    '''        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+''',
+    '''        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+'''
+)
 
 print('Applied visible screenshot storage and yt-dlp Release crash fixes.')
