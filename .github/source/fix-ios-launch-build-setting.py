@@ -21,9 +21,8 @@ source = source.replace(
 namespace = {'__name__': '__main__', '__file__': str(player_patch)}
 exec(compile(source, str(player_patch), 'exec'), namespace)
 
-# Save screenshots in Files and preserve the Python symbols that YoutubeDL-iOS
-# resolves dynamically in device Release builds. Keeping this call here also
-# makes production builds and Files visibility fail fast when a patch stops applying.
+# Save screenshots in Files, preserve the complete custom Info.plist, and keep
+# the Python symbols that YoutubeDL-iOS resolves dynamically in Release builds.
 ytdlp_patch = Path(__file__).with_name('fix-ios-screenshot-ytdlp.py')
 if not ytdlp_patch.is_file():
     raise SystemExit(f'Missing screenshot/yt-dlp patch: {ytdlp_patch}')
