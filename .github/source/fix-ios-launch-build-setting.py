@@ -8,3 +8,10 @@ if old not in text:
     raise SystemExit('Expected XcodeGen settings anchor was not found')
 project.write_text(text.replace(old, new, 1))
 print('Pinned UILaunchStoryboardName=LaunchScreen in Xcode build settings.')
+
+# Run the follow-up player UX patch from the same build working directory.
+player_patch = Path(__file__).with_name('fix-ios-player-ux-v2.py')
+if not player_patch.is_file():
+    raise SystemExit(f'Missing player UX patch: {player_patch}')
+namespace = {'__name__': '__main__', '__file__': str(player_patch)}
+exec(compile(player_patch.read_text(), str(player_patch), 'exec'), namespace)
