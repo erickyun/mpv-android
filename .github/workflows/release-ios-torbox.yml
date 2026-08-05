@@ -52,6 +52,8 @@ jobs:
             -scheme MPVTorBox
 
       - name: Build device app without signing
+        id: ios_build
+        continue-on-error: true
         working-directory: ios
         run: |
           set -o pipefail
@@ -66,7 +68,32 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            build | tee xcodebuild.log
+            build 2>&1 | tee xcodebuild.log
+
+      - name: Print compiler errors
+        if: always()
+        working-directory: ios
+        run: |
+          if test -f xcodebuild.log; then
+            echo "## Compiler diagnostics" >> "$GITHUB_STEP_SUMMARY"
+            grep -nE "(^|[[:space:]])(error:|fatal error:)" xcodebuild.log | tail -100 | tee compiler-errors.txt || true
+            sed -n '1,200p' compiler-errors.txt >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPVTorBox-iOS-build-log
+          path: |
+            ios/xcodebuild.log
+            ios/compiler-errors.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop after failed build
+        if: steps.ios_build.outcome != 'success'
+        run: exit 1
 
       - name: Package unsigned IPA
         working-directory: ios
@@ -80,14 +107,13 @@ jobs:
           /usr/bin/zip -qry release/MPVTorBox-iOS-unsigned.ipa Payload
           shasum -a 256 release/MPVTorBox-iOS-unsigned.ipa > release/SHA256SUMS.txt
 
-      - name: Upload workflow artifact
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: MPVTorBox-iOS-unsigned
           path: |
             ios/release/MPVTorBox-iOS-unsigned.ipa
             ios/release/SHA256SUMS.txt
-            ios/xcodebuild.log
           if-no-files-found: error
           retention-days: 30
 
