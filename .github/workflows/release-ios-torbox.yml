@@ -1,4 +1,4 @@
-name: Build iOS TorBox IPA
+name: Build iOS TorBox yt-dlp IPA
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
   build:
     name: Build unsigned iOS IPA
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Check out source
@@ -100,6 +100,6 @@ jobs:
             ios/release/MPVTorBox-iOS-unsigned.ipa \
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
-            --title "MPV TorBox iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "Unsigned iPhone/iPad IPA with TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
+            --title "MPV TorBox yt-dlp iOS ${GITHUB_RUN_NUMBER}" \
+            --notes "Unsigned iPhone/iPad IPA with local yt-dlp extraction, TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Requires iOS 16+. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
             --prerelease
