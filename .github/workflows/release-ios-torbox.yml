@@ -1,4 +1,4 @@
-name: Build iOS TorBox yt-dlp IPA
+name: Build MPV iOS yt-dlp IPA
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
       - ".github/source/fix-ios-swift6.py"
       - ".github/source/fix-ios-fullscreen-install.py"
       - ".github/source/fix-ios-launch-build-setting.py"
+      - ".github/source/fix-ios-player-ux-v2.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
@@ -23,7 +24,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build unsigned iOS IPA
+    name: Build unsigned MPV iOS IPA
     runs-on: macos-15
     timeout-minutes: 120
 
@@ -53,7 +54,7 @@ jobs:
         working-directory: ios
         run: python3 ../.github/source/fix-ios-swift6.py
 
-      - name: Apply iPhone full-screen and reinstall reset fixes
+      - name: Apply full-screen, reset, and player UX fixes
         working-directory: ios
         run: |
           python3 ../.github/source/fix-ios-fullscreen-install.py
@@ -62,6 +63,10 @@ jobs:
           grep -q 'UILaunchStoryboardName' MPVTorBox/Info.plist
           grep -q 'INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen' project.yml
           grep -q 'installation_marker_v1' MPVTorBox/AppSettings.swift
+          grep -q 'refreshVideoSurface' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'forOpeningContentTypes: \[.item\], asCopy: true' MPVTorBox/Views/DocumentPicker.swift
+          grep -q 'statsLevel == 0 ? 3 : 0' MPVTorBox/Views/PlayerScreen.swift
+          grep -q 'Starting built-in yt-dlp' MPVTorBox/YTDLPService.swift
 
       - name: Generate official MPV app icon
         working-directory: ios
@@ -121,7 +126,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MPVTorBox-iOS-build-log
+          name: MPV-iOS-build-log
           path: |
             ios/xcodebuild.log
             ios/compiler-errors.txt
@@ -139,13 +144,11 @@ jobs:
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
 
-          # The build log proves that Interface Builder compiled and linked the
-          # launch storyboard into the actual device application target.
           grep -qE 'CompileStoryboard .*/MPVTorBox/LaunchScreen\.storyboard' xcodebuild.log
           grep -qE -- '--link .*/MPVTorBox\.app .*/LaunchScreen\.storyboardc' xcodebuild.log
 
-          # Some Xcode configurations omit the source plist launch key while
-          # processing Info.plist. Pin it in the unsigned bundle before signing.
+          # Pin the values in the actual installable bundle. Xcode's processed
+          # plist can otherwise omit the source display name/version keys.
           python3 - "$APP_PATH/Info.plist" <<'PY'
           import plistlib
           import sys
@@ -154,60 +157,76 @@ jobs:
           with open(path, 'rb') as stream:
               info = plistlib.load(stream)
 
-          print('Launch-related keys before final packaging:')
-          for key in sorted(k for k in info if 'launch' in k.lower()):
-              print(f'  {key}={info[key]!r}')
-
           info.pop('UILaunchScreen', None)
           info['UILaunchStoryboardName'] = 'LaunchScreen'
+          info['CFBundleDisplayName'] = 'MPV'
+          info['CFBundleName'] = 'MPV'
+          info['CFBundleShortVersionString'] = '1.2.0'
+          info['CFBundleVersion'] = '12'
 
           with open(path, 'wb') as stream:
               plistlib.dump(info, stream, fmt=plistlib.FMT_BINARY, sort_keys=False)
 
           with open(path, 'rb') as stream:
               verified = plistlib.load(stream)
-          if verified.get('UILaunchStoryboardName') != 'LaunchScreen':
-              raise SystemExit('Could not pin UILaunchStoryboardName=LaunchScreen')
-          print('Pinned compiled app Info.plist: UILaunchStoryboardName=LaunchScreen')
+          expected = {
+              'UILaunchStoryboardName': 'LaunchScreen',
+              'CFBundleDisplayName': 'MPV',
+              'CFBundleName': 'MPV',
+              'CFBundleShortVersionString': '1.2.0',
+              'CFBundleVersion': '12',
+          }
+          for key, value in expected.items():
+              if verified.get(key) != value:
+                  raise SystemExit(f'{key}={verified.get(key)!r}, expected {value!r}')
+          print('Pinned final app identity:', expected)
           PY
 
           rm -rf Payload release
           mkdir -p Payload release
-          cp -R "$APP_PATH" Payload/MPVTorBox.app
-          /usr/bin/zip -qry release/MPVTorBox-iOS-unsigned.ipa Payload
+          cp -R "$APP_PATH" Payload/MPV.app
+          /usr/bin/zip -qry release/MPV-iOS-unsigned.ipa Payload
 
-          # Verify the installable IPA itself, rather than trusting an
-          # intermediate build directory.
-          python3 - release/MPVTorBox-iOS-unsigned.ipa <<'PY'
+          # Verify the final IPA, not an intermediate build directory.
+          python3 - release/MPV-iOS-unsigned.ipa <<'PY'
           import plistlib
           import sys
           import zipfile
 
           ipa = sys.argv[1]
-          expected = 'Payload/MPVTorBox.app/Info.plist'
+          expected_path = 'Payload/MPV.app/Info.plist'
+          expected_values = {
+              'UILaunchStoryboardName': 'LaunchScreen',
+              'CFBundleDisplayName': 'MPV',
+              'CFBundleName': 'MPV',
+              'CFBundleShortVersionString': '1.2.0',
+              'CFBundleVersion': '12',
+          }
           with zipfile.ZipFile(ipa) as archive:
               names = archive.namelist()
-              if expected not in names:
-                  raise SystemExit(f'{expected} is missing from the IPA')
-              info = plistlib.loads(archive.read(expected))
-              actual = info.get('UILaunchStoryboardName')
-              if actual != 'LaunchScreen':
-                  raise SystemExit(f'IPA launch storyboard is {actual!r}, expected LaunchScreen')
+              if expected_path not in names:
+                  raise SystemExit(f'{expected_path} is missing from the IPA')
+              info = plistlib.loads(archive.read(expected_path))
+              for key, value in expected_values.items():
+                  if info.get(key) != value:
+                      raise SystemExit(f'IPA {key}={info.get(key)!r}, expected {value!r}')
               launch_entries = [name for name in names if 'launchscreen' in name.lower()]
-              print(f'IPA launch storyboard key: {actual}')
+              if not launch_entries:
+                  raise SystemExit('Compiled LaunchScreen is missing from the IPA')
+              print('Verified final IPA identity:', expected_values)
               print('LaunchScreen-related IPA entries:')
               for name in launch_entries:
                   print(f'  {name}')
           PY
 
-          shasum -a 256 release/MPVTorBox-iOS-unsigned.ipa > release/SHA256SUMS.txt
+          shasum -a 256 release/MPV-iOS-unsigned.ipa > release/SHA256SUMS.txt
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MPVTorBox-iOS-unsigned
+          name: MPV-iOS-unsigned
           path: |
-            ios/release/MPVTorBox-iOS-unsigned.ipa
+            ios/release/MPV-iOS-unsigned.ipa
             ios/release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
@@ -218,9 +237,9 @@ jobs:
           TAG: ios-torbox-${{ github.run_number }}
         run: |
           gh release create "$TAG" \
-            ios/release/MPVTorBox-iOS-unsigned.ipa \
+            ios/release/MPV-iOS-unsigned.ipa \
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
-            --title "MPV TorBox iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "Fixes iPhone compatibility-mode letterboxing with a compiled LaunchScreen storyboard and an IPA-verified UILaunchStoryboardName. Adds fresh-install detection that erases stale Keychain/UserDefaults/MPVConfig data, plus a manual Erase all settings action. Retains the mpv-android-style player, local files, tracks, stats, TorBox, TorrServer, yt-dlp, and MPV icon. Requires iOS 16+. Unsigned IPA." \
+            --title "MPV iOS ${GITHUB_RUN_NUMBER}" \
+            --notes "MPV 1.2.0 (build 12). Fixes immediate portrait/landscape Metal video resizing, reveals player controls with one tap, opens local and cloud-provider files through the iOS document picker, combines playback statistics into one complete panel, explains the bundled yt-dlp workflow, and uses MPV as the visible app name. Also retains TorBox, TorrServer, tracks, MPV config files, the compiled LaunchScreen, and fresh-install settings cleanup. Requires iOS 16+. Unsigned IPA." \
             --prerelease
