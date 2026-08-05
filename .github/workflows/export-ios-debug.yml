@@ -1,0 +1,44 @@
+name: Export patched iOS source for debugging
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - ".github/workflows/export-ios-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract source and apply production patches
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          encoded = Path('MPVTorBox-source.tar.xz.b64').read_text().strip()
+          Path('MPVTorBox-source.tar.xz').write_bytes(base64.b64decode(encoded, validate=True))
+          PY
+          tar -xJf MPVTorBox-source.tar.xz
+          python3 ../.github/source/fix-ios-swift6.py
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
+
+      - name: Upload patched Swift source
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-patched-iOS-source
+          path: |
+            ios/MPVTorBox
+            ios/project.yml
+          if-no-files-found: error
+          retention-days: 3
