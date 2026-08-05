@@ -135,10 +135,10 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
-          LAUNCH_RESOURCE="$(find "$APP_PATH" -name 'LaunchScreen.storyboardc' -print -quit)"
-          test -n "$LAUNCH_RESOURCE"
-          echo "Verified compiled launch screen: $LAUNCH_RESOURCE"
-          /usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$APP_PATH/Info.plist" | grep -qx 'LaunchScreen'
+          grep -qE 'CompileStoryboard .*/MPVTorBox/LaunchScreen\.storyboard' xcodebuild.log
+          grep -qE -- '--link .*/MPVTorBox\.app .*/LaunchScreen\.storyboardc' xcodebuild.log
+          /usr/bin/plutil -extract UILaunchStoryboardName raw -o - "$APP_PATH/Info.plist" | grep -qx 'LaunchScreen'
+          echo "Verified compiled and linked LaunchScreen with UILaunchStoryboardName=LaunchScreen"
           rm -rf Payload release
           mkdir -p Payload release
           cp -R "$APP_PATH" Payload/MPVTorBox.app
