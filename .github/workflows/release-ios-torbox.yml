@@ -37,20 +37,21 @@ jobs:
           from pathlib import Path
           path = Path('MPVTorBox/YTDLPService.swift')
           text = path.read_text()
-          old = '''        let (formats, _) = try await youtubeDL.extractInfo(url: url)
-          await status("Selecting a playable yt-dlp format…")
-
-          let progressive = formats.filter { format in'''
-          new = '''        let (selectedFormats, info) = try await youtubeDL.extractInfo(url: url)
-          await status("Selecting a playable yt-dlp format…")
-
-          var formats = info.formats
-          formats.append(contentsOf: selectedFormats)
-
-          let progressive = formats.filter { format in'''
-          if old not in text:
+          declaration = 'let (formats, _) = try await youtubeDL.extractInfo(url: url)'
+          filter_line = 'let progressive = formats.filter { format in'
+          if declaration not in text or filter_line not in text:
               raise SystemExit('Expected yt-dlp resolver source was not found')
-          path.write_text(text.replace(old, new, 1))
+          text = text.replace(
+              declaration,
+              'let (selectedFormats, info) = try await youtubeDL.extractInfo(url: url)',
+              1,
+          )
+          text = text.replace(
+              filter_line,
+              'var formats = info.formats\n        formats.append(contentsOf: selectedFormats)\n\n        let progressive = formats.filter { format in',
+              1,
+          )
+          path.write_text(text)
           PY
 
       - name: Generate iOS app icon
