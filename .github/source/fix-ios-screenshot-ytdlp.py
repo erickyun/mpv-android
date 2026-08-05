@@ -145,10 +145,26 @@ replace_once(
 '''
 )
 
-# 3) YoutubeDL-iOS loads Python C symbols through dlsym. Release stripping can
+# 3) Preserve the hand-written Info.plist. XcodeGen's `info.path` mode generates
+# a new minimal plist and discards URL schemes, document types, file sharing,
+# local-network text, and orientation keys.
+project = Path('project.yml')
+replace_once(
+    project,
+    '''    info:
+      path: MPVTorBox/Info.plist
+    settings:
+      base:
+''',
+    '''    settings:
+      base:
+        INFOPLIST_FILE: MPVTorBox/Info.plist
+'''
+)
+
+# 4) YoutubeDL-iOS loads Python C symbols through dlsym. Release stripping can
 # remove those symbols and causes an immediate EXC_BAD_ACCESS on Py_IsInitialized.
 # Preserve the symbols and compile Swift without Release-only optimization.
-project = Path('project.yml')
 replace_once(
     project,
     '''        SWIFT_VERSION: 5.9
@@ -175,4 +191,4 @@ replace_once(
 '''
 )
 
-print('Applied visible screenshot storage and yt-dlp Release crash fixes.')
+print('Applied visible screenshot storage, preserved Info.plist, and yt-dlp Release crash fixes.')
