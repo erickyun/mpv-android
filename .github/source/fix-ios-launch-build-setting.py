@@ -28,3 +28,11 @@ if not ytdlp_patch.is_file():
     raise SystemExit(f'Missing screenshot/yt-dlp patch: {ytdlp_patch}')
 namespace = {'__name__': '__main__', '__file__': str(ytdlp_patch)}
 exec(compile(ytdlp_patch.read_text(), str(ytdlp_patch), 'exec'), namespace)
+
+# Add the yt-dlp update/version interface, official stats.lua controls, and
+# runtime mpv version reporting after the earlier compatibility patches.
+features_patch = Path(__file__).with_name('fix-ios-ytdlp-stats-versions.py')
+if not features_patch.is_file():
+    raise SystemExit(f'Missing yt-dlp/stats/version patch: {features_patch}')
+namespace = {'__name__': '__main__', '__file__': str(features_patch)}
+exec(compile(features_patch.read_text(), str(features_patch), 'exec'), namespace)
