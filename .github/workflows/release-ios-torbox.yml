@@ -6,6 +6,7 @@ on:
       - agent/ios-torbox
     paths:
       - "ios/**"
+      - ".github/source/MPVTorBox-source.tar.gz.b64"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
 
@@ -28,7 +29,16 @@ jobs:
 
       - name: Extract iOS source
         working-directory: ios
-        run: tar -xzf MPVTorBox-source.tar.gz
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          encoded = Path('../.github/source/MPVTorBox-source.tar.gz.b64').read_text().strip()
+          Path('MPVTorBox-source.decoded.tar.gz').write_bytes(base64.b64decode(encoded, validate=True))
+          PY
+          gzip -t MPVTorBox-source.decoded.tar.gz
+          tar -xzf MPVTorBox-source.decoded.tar.gz
 
       - name: Improve yt-dlp stream selection
         working-directory: ios
@@ -191,5 +201,5 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV TorBox yt-dlp iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "Unsigned iPhone/iPad IPA with local yt-dlp extraction, TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Requires iOS 16+. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
+            --notes "Unsigned iPhone/iPad IPA with editable mpv.conf/input.conf, high-quality profile, local yt-dlp extraction, TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Requires iOS 16+. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
             --prerelease
