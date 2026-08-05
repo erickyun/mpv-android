@@ -11,6 +11,8 @@ on:
       - ".github/source/fix-ios-fullscreen-install.py"
       - ".github/source/fix-ios-launch-build-setting.py"
       - ".github/source/fix-ios-player-ux-v2.py"
+      - ".github/source/fix-ios-screenshot-ytdlp.py"
+      - ".github/source/fix-ios-ytdlp-stats-versions.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-torbox.yml"
   workflow_dispatch:
@@ -54,19 +56,36 @@ jobs:
         working-directory: ios
         run: python3 ../.github/source/fix-ios-swift6.py
 
-      - name: Apply full-screen, reset, and player UX fixes
+      - name: Apply player, yt-dlp, stats, and version fixes
         working-directory: ios
         run: |
+          set -euo pipefail
           python3 ../.github/source/fix-ios-fullscreen-install.py
           python3 ../.github/source/fix-ios-launch-build-setting.py
+
+          mkdir -p MPVTorBox/Resources
+          curl --fail --location --silent --show-error --retry 3 \
+            https://raw.githubusercontent.com/mpv-player/mpv/v0.41.0/player/lua/stats.lua \
+            --output MPVTorBox/Resources/stats.lua
+          test "$(git hash-object MPVTorBox/Resources/stats.lua)" = "dcb78501cb93afd6e883712e3d352d65ba43bcd6"
+
           test -f MPVTorBox/LaunchScreen.storyboard
+          test -f MPVTorBox/Utilities/MPVVersionProvider.swift
+          test -f MPVTorBox/Resources/stats.lua
           grep -q 'UILaunchStoryboardName' MPVTorBox/Info.plist
-          grep -q 'INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen' project.yml
+          grep -q 'GENERATE_INFOPLIST_FILE: NO' project.yml
+          grep -q 'MARKETING_VERSION: 1.3.0' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: 13' project.yml
           grep -q 'installation_marker_v1' MPVTorBox/AppSettings.swift
           grep -q 'refreshVideoSurface' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'Bundle.main.url(forResource: "stats"' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'key.characters' MPVTorBox/Player/MPVMetalViewController.swift
           grep -q 'forOpeningContentTypes: \[.item\], asCopy: true' MPVTorBox/Views/DocumentPicker.swift
-          grep -q 'statsLevel == 0 ? 3 : 0' MPVTorBox/Views/PlayerScreen.swift
-          grep -q 'Starting built-in yt-dlp' MPVTorBox/YTDLPService.swift
+          grep -q 'Delete old module and update yt-dlp' MPVTorBox/AdvancedSettingsView.swift
+          grep -q 'YTDLPService.shared' MPVTorBox/SourceResolver.swift
+          grep -q 'stats/display-page-' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'Official mpv v0.41.0' MPVTorBox/AdvancedSettingsView.swift
+          grep -q 'screenshot-to-file' MPVTorBox/Player/MPVMetalViewController.swift
 
       - name: Generate official MPV app icon
         working-directory: ios
@@ -146,9 +165,10 @@ jobs:
 
           grep -qE 'CompileStoryboard .*/MPVTorBox/LaunchScreen\.storyboard' xcodebuild.log
           grep -qE -- '--link .*/MPVTorBox\.app .*/LaunchScreen\.storyboardc' xcodebuild.log
+          find "$APP_PATH" -iname 'stats.lua' -print -quit | grep -q 'stats.lua'
 
-          # Pin the values in the actual installable bundle. Xcode's processed
-          # plist can otherwise omit the source display name/version keys.
+          # Pin identity fields while retaining all custom URL, document,
+          # local-network, orientation, and Files-sharing keys from Info.plist.
           python3 - "$APP_PATH/Info.plist" <<'PY'
           import plistlib
           import sys
@@ -161,8 +181,10 @@ jobs:
           info['UILaunchStoryboardName'] = 'LaunchScreen'
           info['CFBundleDisplayName'] = 'MPV'
           info['CFBundleName'] = 'MPV'
-          info['CFBundleShortVersionString'] = '1.2.0'
-          info['CFBundleVersion'] = '12'
+          info['CFBundleShortVersionString'] = '1.3.0'
+          info['CFBundleVersion'] = '13'
+          info['UIFileSharingEnabled'] = True
+          info['LSSupportsOpeningDocumentsInPlace'] = True
 
           with open(path, 'wb') as stream:
               plistlib.dump(info, stream, fmt=plistlib.FMT_BINARY, sort_keys=False)
@@ -173,13 +195,19 @@ jobs:
               'UILaunchStoryboardName': 'LaunchScreen',
               'CFBundleDisplayName': 'MPV',
               'CFBundleName': 'MPV',
-              'CFBundleShortVersionString': '1.2.0',
-              'CFBundleVersion': '12',
+              'CFBundleShortVersionString': '1.3.0',
+              'CFBundleVersion': '13',
+              'UIFileSharingEnabled': True,
+              'LSSupportsOpeningDocumentsInPlace': True,
           }
           for key, value in expected.items():
               if verified.get(key) != value:
                   raise SystemExit(f'{key}={verified.get(key)!r}, expected {value!r}')
-          print('Pinned final app identity:', expected)
+          if not verified.get('CFBundleURLTypes'):
+              raise SystemExit('CFBundleURLTypes was lost from the final app')
+          if not verified.get('CFBundleDocumentTypes'):
+              raise SystemExit('CFBundleDocumentTypes was lost from the final app')
+          print('Pinned final app identity and retained custom Info.plist:', expected)
           PY
 
           rm -rf Payload release
@@ -187,7 +215,7 @@ jobs:
           cp -R "$APP_PATH" Payload/MPV.app
           /usr/bin/zip -qry release/MPV-iOS-unsigned.ipa Payload
 
-          # Verify the final IPA, not an intermediate build directory.
+          # Verify the final IPA rather than trusting an intermediate app bundle.
           python3 - release/MPV-iOS-unsigned.ipa <<'PY'
           import plistlib
           import sys
@@ -199,8 +227,10 @@ jobs:
               'UILaunchStoryboardName': 'LaunchScreen',
               'CFBundleDisplayName': 'MPV',
               'CFBundleName': 'MPV',
-              'CFBundleShortVersionString': '1.2.0',
-              'CFBundleVersion': '12',
+              'CFBundleShortVersionString': '1.3.0',
+              'CFBundleVersion': '13',
+              'UIFileSharingEnabled': True,
+              'LSSupportsOpeningDocumentsInPlace': True,
           }
           with zipfile.ZipFile(ipa) as archive:
               names = archive.namelist()
@@ -210,13 +240,16 @@ jobs:
               for key, value in expected_values.items():
                   if info.get(key) != value:
                       raise SystemExit(f'IPA {key}={info.get(key)!r}, expected {value!r}')
+              if not info.get('CFBundleURLTypes') or not info.get('CFBundleDocumentTypes'):
+                  raise SystemExit('Custom URL or document handlers are missing from the IPA')
               launch_entries = [name for name in names if 'launchscreen' in name.lower()]
+              stats_entries = [name for name in names if name.lower().endswith('/stats.lua')]
               if not launch_entries:
                   raise SystemExit('Compiled LaunchScreen is missing from the IPA')
+              if not stats_entries:
+                  raise SystemExit('Official stats.lua is missing from the IPA')
               print('Verified final IPA identity:', expected_values)
-              print('LaunchScreen-related IPA entries:')
-              for name in launch_entries:
-                  print(f'  {name}')
+              print('stats.lua IPA entries:', stats_entries)
           PY
 
           shasum -a 256 release/MPV-iOS-unsigned.ipa > release/SHA256SUMS.txt
@@ -241,5 +274,5 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV iOS ${GITHUB_RUN_NUMBER}" \
-            --notes "MPV 1.2.0 (build 12). Fixes immediate portrait/landscape Metal video resizing, reveals player controls with one tap, opens local and cloud-provider files through the iOS document picker, combines playback statistics into one complete panel, explains the bundled yt-dlp workflow, and uses MPV as the visible app name. Also retains TorBox, TorrServer, tracks, MPV config files, the compiled LaunchScreen, and fresh-install settings cleanup. Requires iOS 16+. Unsigned IPA." \
+            --notes "MPV 1.3.0 (build 13). Adds an in-app yt-dlp updater that atomically replaces the old downloaded module, displays the installed yt-dlp version, shows the actual mpv engine version in Settings, and bundles the official mpv v0.41.0 stats.lua. Stats supports i for temporary display, Shift+i for persistent toggle, pages 1–5, and an on-screen Stats menu. Retains TorBox, TorrServer, local files, screenshots in Files, custom mpv.conf/input.conf, URL handlers, and full-screen playback. Requires iOS 16+. Unsigned IPA." \
             --prerelease
