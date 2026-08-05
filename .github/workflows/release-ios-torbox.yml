@@ -30,6 +30,46 @@ jobs:
         working-directory: ios
         run: tar -xzf MPVTorBox-source.tar.gz
 
+      - name: Generate iOS app icon
+        working-directory: ios
+        run: |
+          mkdir -p MPVTorBox/Assets.xcassets/AppIcon.appiconset
+          python3 - <<'PY'
+          import struct, zlib
+          width = height = 1024
+          rows = []
+          for y in range(height):
+              row = bytearray()
+              for x in range(width):
+                  r, g, b = 18, 28, 48
+                  if 320 <= x <= 420 and 300 <= y <= 724:
+                      r, g, b = 255, 255, 255
+                  if 420 < x <= 730 and abs(y - 512) <= (x - 420) * 0.68:
+                      r, g, b = 255, 255, 255
+                  if (x - 770) ** 2 + (y - 265) ** 2 <= 52 ** 2:
+                      r, g, b = 82, 224, 182
+                  row.extend((r, g, b, 255))
+              rows.append(b'\x00' + bytes(row))
+          raw = b''.join(rows)
+          def chunk(kind, data):
+              return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+          open('MPVTorBox/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png', 'wb').write(png)
+          PY
+          cat > MPVTorBox/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
+          {
+            "images" : [
+              {
+                "filename" : "AppIcon-1024.png",
+                "idiom" : "universal",
+                "platform" : "ios",
+                "size" : "1024x1024"
+              }
+            ],
+            "info" : { "author" : "xcode", "version" : 1 }
+          }
+          JSON
+
       - name: Select Xcode
         run: |
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
