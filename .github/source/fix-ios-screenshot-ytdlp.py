@@ -88,7 +88,7 @@ replace_once(
         let (selectedFormats, info) = try await youtubeDL.extractInfo(url: url)
 ''',
     '''        try prepareRuntimeDirectories()
-        await status("Preparing yt-dlp… First use downloads the current module.")
+        await status("Starting built-in yt-dlp… Preparing runtime; first use downloads the current module.")
 
         let bridge: YoutubeDL
         if let youtubeDL {
@@ -166,7 +166,5 @@ replace_once(
         DEBUG_INFORMATION_FORMAT: dwarf
 '''
 )
-replace_once(project, '        MARKETING_VERSION: 1.2.0\n', '        MARKETING_VERSION: 1.2.1\n')
-replace_once(project, '        CURRENT_PROJECT_VERSION: 12\n', '        CURRENT_PROJECT_VERSION: 13\n')
 
 print('Applied visible screenshot storage and yt-dlp Release crash fixes.')
