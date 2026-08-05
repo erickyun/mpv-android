@@ -30,6 +30,29 @@ jobs:
         working-directory: ios
         run: tar -xzf MPVTorBox-source.tar.gz
 
+      - name: Improve yt-dlp stream selection
+        working-directory: ios
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('MPVTorBox/YTDLPService.swift')
+          text = path.read_text()
+          old = '''        let (formats, _) = try await youtubeDL.extractInfo(url: url)
+          await status("Selecting a playable yt-dlp format…")
+
+          let progressive = formats.filter { format in'''
+          new = '''        let (selectedFormats, info) = try await youtubeDL.extractInfo(url: url)
+          await status("Selecting a playable yt-dlp format…")
+
+          var formats = info.formats
+          formats.append(contentsOf: selectedFormats)
+
+          let progressive = formats.filter { format in'''
+          if old not in text:
+              raise SystemExit('Expected yt-dlp resolver source was not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Generate iOS app icon
         working-directory: ios
         run: |
