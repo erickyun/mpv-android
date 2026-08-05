@@ -162,7 +162,6 @@ replace_once(
         STRIP_STYLE: debugging
         STRIP_INSTALLED_PRODUCT: NO
         COPY_PHASE_STRIP: NO
-        DEAD_CODE_STRIPPING: NO
         DEBUG_INFORMATION_FORMAT: dwarf
 '''
 )
