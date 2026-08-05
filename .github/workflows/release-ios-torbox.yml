@@ -1,0 +1,105 @@
+name: Build iOS TorBox IPA
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - "ios/**"
+      - ".github/workflows/release-ios-torbox.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-torbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build unsigned iOS IPA
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Extract iOS source
+        working-directory: ios
+        run: tar -xzf MPVTorBox-source.tar.gz
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox
+
+      - name: Build device app without signing
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build | tee xcodebuild.log
+
+      - name: Package unsigned IPA
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          rm -rf Payload release
+          mkdir -p Payload release
+          cp -R "$APP_PATH" Payload/MPVTorBox.app
+          /usr/bin/zip -qry release/MPVTorBox-iOS-unsigned.ipa Payload
+          shasum -a 256 release/MPVTorBox-iOS-unsigned.ipa > release/SHA256SUMS.txt
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPVTorBox-iOS-unsigned
+          path: |
+            ios/release/MPVTorBox-iOS-unsigned.ipa
+            ios/release/SHA256SUMS.txt
+            ios/xcodebuild.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ios-torbox-${{ github.run_number }}
+        run: |
+          gh release create "$TAG" \
+            ios/release/MPVTorBox-iOS-unsigned.ipa \
+            ios/release/SHA256SUMS.txt \
+            --target "${GITHUB_SHA}" \
+            --title "MPV TorBox iOS ${GITHUB_RUN_NUMBER}" \
+            --notes "Unsigned iPhone/iPad IPA with TorBox, TorrServer fallback, magnet URL handling, and MPVKit playback. Sign with AltStore, SideStore, Sideloadly, TrollStore, or your own Apple certificate." \
+            --prerelease
