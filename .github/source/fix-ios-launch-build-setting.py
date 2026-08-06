@@ -37,18 +37,24 @@ if not features_patch.is_file():
 namespace = {'__name__': '__main__', '__file__': str(features_patch)}
 exec(compile(features_patch.read_text(), str(features_patch), 'exec'), namespace)
 
-# Apply the latest playback fixes: bounded yt-dlp extraction, delete support,
-# native stats fallback, reliable rotation resizing, tap toggle, and regional
-# seek/brightness/volume gestures.
+# Apply playback fixes: bounded yt-dlp extraction, delete support, native stats
+# fallback, reliable rotation resizing, tap toggle, and regional gestures.
 playback_patch = Path(__file__).with_name('fix-ios-playback-v4.py')
 if not playback_patch.is_file():
     raise SystemExit(f'Missing playback v4 patch: {playback_patch}')
 namespace = {'__name__': '__main__', '__file__': str(playback_patch)}
 exec(compile(playback_patch.read_text(), str(playback_patch), 'exec'), namespace)
 
-# The current release workflow pins the public app version to 1.3.0 (13).
-# Keep that identity while shipping the v4 fixes in the next prerelease tag.
+# Preserve the previous public identity before applying the latest revision.
 text = project.read_text()
 text = text.replace('        MARKETING_VERSION: 1.4.0\n', '        MARKETING_VERSION: 1.3.0\n', 1)
 text = text.replace('        CURRENT_PROJECT_VERSION: 14\n', '        CURRENT_PROJECT_VERSION: 13\n', 1)
 project.write_text(text)
+
+# Route only supported website pages through yt-dlp, hand its HTTP headers to
+# mpv correctly, and expose gpu-next/deband/shader details in native Stats.
+renderer_patch = Path(__file__).with_name('fix-ios-routing-renderer-v5.py')
+if not renderer_patch.is_file():
+    raise SystemExit(f'Missing routing/renderer v5 patch: {renderer_patch}')
+namespace = {'__name__': '__main__', '__file__': str(renderer_patch)}
+exec(compile(renderer_patch.read_text(), str(renderer_patch), 'exec'), namespace)
