@@ -36,3 +36,19 @@ if not features_patch.is_file():
     raise SystemExit(f'Missing yt-dlp/stats/version patch: {features_patch}')
 namespace = {'__name__': '__main__', '__file__': str(features_patch)}
 exec(compile(features_patch.read_text(), str(features_patch), 'exec'), namespace)
+
+# Apply the latest playback fixes: bounded yt-dlp extraction, delete support,
+# native stats fallback, reliable rotation resizing, tap toggle, and regional
+# seek/brightness/volume gestures.
+playback_patch = Path(__file__).with_name('fix-ios-playback-v4.py')
+if not playback_patch.is_file():
+    raise SystemExit(f'Missing playback v4 patch: {playback_patch}')
+namespace = {'__name__': '__main__', '__file__': str(playback_patch)}
+exec(compile(playback_patch.read_text(), str(playback_patch), 'exec'), namespace)
+
+# The current release workflow pins the public app version to 1.3.0 (13).
+# Keep that identity while shipping the v4 fixes in the next prerelease tag.
+text = project.read_text()
+text = text.replace('        MARKETING_VERSION: 1.4.0\n', '        MARKETING_VERSION: 1.3.0\n', 1)
+text = text.replace('        CURRENT_PROJECT_VERSION: 14\n', '        CURRENT_PROJECT_VERSION: 13\n', 1)
+project.write_text(text)
