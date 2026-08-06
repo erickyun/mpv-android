@@ -55,7 +55,6 @@ jobs:
           python3 ../.github/source/fix-ios-swift6.py
           python3 ../.github/source/fix-ios-fullscreen-install.py
           python3 ../.github/source/fix-ios-launch-build-setting.py
-          python3 ../.github/source/fix-ios-routing-renderer-v5.py
           python3 ../.github/source/fix-ios-ytdlp-webkit-v6.py
           python3 ../.github/source/fix-ios-webkit-frameworks.py
 
