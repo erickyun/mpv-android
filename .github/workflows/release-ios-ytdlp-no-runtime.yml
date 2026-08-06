@@ -1,0 +1,244 @@
+name: Build MPV iOS yt-dlp WebKit-only IPA
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - ".github/source/ios-player-v3.part*"
+      - ".github/source/fix-ios-swift6.py"
+      - ".github/source/fix-ios-fullscreen-install.py"
+      - ".github/source/fix-ios-launch-build-setting.py"
+      - ".github/source/fix-ios-ytdlp-webkit-v6.py"
+      - ".github/source/fix-ios-webkit-frameworks.py"
+      - ".github/source/fix-ios-ytdlp-mainthread-logs-v7.py"
+      - ".github/source/fix-ios-ytdlp-hybrid-v8.py"
+      - ".github/source/fix-ios-ytdlp-runtime-probe-v9.py"
+      - ".github/source/patch-youtubedl-ios-hybrid.py"
+      - ".github/source/patch-youtubedl-ios-no-external-runtime.py"
+      - ".github/source/generate-mpv-icon.py"
+      - ".github/workflows/release-ios-ytdlp-no-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-ytdlp-webkit-only-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build unsigned MPV iOS 1.9 IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Extract and patch MPV iOS source
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          encoded = Path('MPVTorBox-source.tar.xz.b64').read_text().strip()
+          Path('MPVTorBox-source.tar.xz').write_bytes(base64.b64decode(encoded, validate=True))
+          PY
+          xz -t MPVTorBox-source.tar.xz
+          tar -xJf MPVTorBox-source.tar.xz
+
+          python3 ../.github/source/fix-ios-swift6.py
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
+          python3 ../.github/source/fix-ios-ytdlp-webkit-v6.py
+          python3 ../.github/source/fix-ios-webkit-frameworks.py
+          python3 ../.github/source/fix-ios-ytdlp-mainthread-logs-v7.py
+          python3 ../.github/source/fix-ios-ytdlp-hybrid-v8.py
+          python3 ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
+
+          mkdir -p MPVTorBox/Resources
+          curl --fail --location --silent --show-error --retry 3 \
+            https://raw.githubusercontent.com/mpv-player/mpv/v0.41.0/player/lua/stats.lua \
+            --output MPVTorBox/Resources/stats.lua
+          test "$(git hash-object MPVTorBox/Resources/stats.lua)" = "dcb78501cb93afd6e883712e3d352d65ba43bcd6"
+
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/grqz/yt-dlp-apple-webkit-jsi/releases/download/v0.1.1/yt-dlp-apple-webkit-jsi.zip \
+            --output MPVTorBox/Resources/yt-dlp-apple-webkit-jsi.zip
+          echo "6b8267091d45410cdadbc1fe3d1fe5cdb9ed9de0420489790ba1fcc570c81821  MPVTorBox/Resources/yt-dlp-apple-webkit-jsi.zip" | shasum -a 256 -c -
+          unzip -tq MPVTorBox/Resources/yt-dlp-apple-webkit-jsi.zip
+
+          grep -q 'Running yt-dlp on a worker thread' MPVTorBox/YTDLPService.swift
+          grep -q 'MARKETING_VERSION: 1.9.0' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: 19' project.yml
+
+      - name: Generate official MPV app icon
+        working-directory: ios
+        run: python3 ../.github/source/generate-mpv-icon.py
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox \
+            -clonedSourcePackagesDirPath "$PWD/SourcePackages"
+
+      - name: Patch YoutubeDL-iOS bridge
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          BRIDGE_SOURCE="$(find SourcePackages/checkouts -path '*/Sources/YoutubeDL/YoutubeDL.swift' -print -quit)"
+          test -n "$BRIDGE_SOURCE"
+          chmod u+w "$BRIDGE_SOURCE"
+          python3 ../.github/source/patch-youtubedl-ios-hybrid.py "$BRIDGE_SOURCE"
+          python3 ../.github/source/patch-youtubedl-ios-no-external-runtime.py "$BRIDGE_SOURCE"
+          grep -q 'external JS runtimes disabled' "$BRIDGE_SOURCE"
+          grep -q 'effectiveOptions\["js_runtimes"\] = builtins.dict()' "$BRIDGE_SOURCE"
+          grep -q 'effectiveOptions\["verbose"\] = false' "$BRIDGE_SOURCE"
+          grep -q 'python extract_info begin' "$BRIDGE_SOURCE"
+
+      - name: Build device app without signing
+        id: ios_build
+        continue-on-error: true
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/build" \
+            -clonedSourcePackagesDirPath "$PWD/SourcePackages" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee xcodebuild.log
+
+      - name: Print compiler errors
+        if: always()
+        working-directory: ios
+        run: grep -nE "(^|[[:space:]])(error:|fatal error:)" xcodebuild.log | tail -200 | tee compiler-errors.txt || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-iOS-1.9-build-log
+          path: |
+            ios/xcodebuild.log
+            ios/compiler-errors.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop after failed build
+        if: steps.ios_build.outcome != 'success'
+        run: exit 1
+
+      - name: Package and verify unsigned IPA
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          find "$APP_PATH" -iname 'stats.lua' -print -quit | grep -q 'stats.lua'
+          find "$APP_PATH" -iname 'yt-dlp-apple-webkit-jsi.zip' -print -quit | grep -q 'yt-dlp-apple-webkit-jsi.zip'
+
+          python3 - "$APP_PATH/Info.plist" <<'PY'
+          import plistlib, sys
+          path = sys.argv[1]
+          with open(path, 'rb') as stream:
+              info = plistlib.load(stream)
+          info.pop('UILaunchScreen', None)
+          info.update({
+              'UILaunchStoryboardName': 'LaunchScreen',
+              'CFBundleDisplayName': 'MPV',
+              'CFBundleName': 'MPV',
+              'CFBundleShortVersionString': '1.9.0',
+              'CFBundleVersion': '19',
+              'UIFileSharingEnabled': True,
+              'LSSupportsOpeningDocumentsInPlace': True,
+          })
+          with open(path, 'wb') as stream:
+              plistlib.dump(info, stream, fmt=plistlib.FMT_BINARY, sort_keys=False)
+          PY
+
+          rm -rf Payload release
+          mkdir -p Payload release
+          cp -R "$APP_PATH" Payload/MPV.app
+          /usr/bin/zip -qry release/MPV-iOS-unsigned.ipa Payload
+
+          python3 - release/MPV-iOS-unsigned.ipa <<'PY'
+          import plistlib, sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              info = plistlib.loads(archive.read('Payload/MPV.app/Info.plist'))
+              expected = {
+                  'CFBundleDisplayName': 'MPV',
+                  'CFBundleName': 'MPV',
+                  'CFBundleShortVersionString': '1.9.0',
+                  'CFBundleVersion': '19',
+                  'UILaunchStoryboardName': 'LaunchScreen',
+                  'UIFileSharingEnabled': True,
+                  'LSSupportsOpeningDocumentsInPlace': True,
+              }
+              for key, value in expected.items():
+                  if info.get(key) != value:
+                      raise SystemExit(f'{key}={info.get(key)!r}, expected {value!r}')
+              names = archive.namelist()
+              if not any(name.lower().endswith('/stats.lua') for name in names):
+                  raise SystemExit('stats.lua is missing')
+              plugin = next((name for name in names if name.lower().endswith('/yt-dlp-apple-webkit-jsi.zip')), None)
+              if not plugin:
+                  raise SystemExit('Apple WebKit plugin is missing')
+              data = archive.read(plugin)
+              if len(data) != 27605 or data[:2] != b'PK':
+                  raise SystemExit('Apple WebKit plugin is invalid')
+              print('Verified MPV iOS 1.9 IPA:', expected)
+          PY
+
+          shasum -a 256 release/MPV-iOS-unsigned.ipa > release/SHA256SUMS.txt
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-iOS-1.9-unsigned
+          path: |
+            ios/release/MPV-iOS-unsigned.ipa
+            ios/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ios-ytdlp-webkit-only-${{ github.run_number }}
+        run: |
+          gh release create "$TAG" \
+            ios/release/MPV-iOS-unsigned.ipa \
+            ios/release/SHA256SUMS.txt \
+            --target "${GITHUB_SHA}" \
+            --title "MPV iOS 1.9.0 yt-dlp WebKit-only" \
+            --notes "MPV 1.9.0 (build 19). Disables yt-dlp's default external Deno/Node/QuickJS runtime probing and verbose executable scan during YoutubeDL construction, while retaining the bundled Apple WebKit JSI challenge provider. Python/plugin setup remains on the main actor and extract_info runs on a worker. Detailed logs remain in Files → On My iPhone → MPV → Logs → yt-dlp.log. Unsigned IPA; requires iOS 16+." \
+            --prerelease
