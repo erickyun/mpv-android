@@ -33,9 +33,9 @@ private func mpvYTDLPBridgeLog(_ message: String) {
     )
     if FileManager.default.fileExists(atPath: path),
        let handle = try? FileHandle(forWritingTo: url) {
-        defer { try? handle.close() }
-        try? handle.seekToEnd()
-        try? handle.write(contentsOf: data)
+        defer { handle.closeFile() }
+        handle.seekToEndOfFile()
+        handle.write(data)
     } else {
         try? data.write(to: url, options: .atomic)
     }
