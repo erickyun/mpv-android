@@ -240,5 +240,7 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV iOS 1.9.0 yt-dlp WebKit-only" \
-            --notes "MPV 1.9.0 (build 19). Disables yt-dlp's default external Deno/Node/QuickJS runtime probing and verbose executable scan during YoutubeDL construction, while retaining the bundled Apple WebKit JSI challenge provider. Python/plugin setup remains on the main actor and extract_info runs on a worker. Detailed logs remain in Files → On My iPhone → MPV → Logs → yt-dlp.log. Unsigned IPA; requires iOS 16+." \
+            --notes "MPV 1.9.0 (build 19). Disables yt-dlp's default external Deno/Node/QuickJS runtime probing and verbose executable scan during YoutubeDL construction, while retaining the bundled Apple WebKit JSI challenge provider and official EJS component. Python/plugin setup remains on the main actor and extract_info runs on a worker. Detailed logs remain in Files → On My iPhone → MPV → Logs → yt-dlp.log. Unsigned IPA; requires iOS 16+." \
             --prerelease
+
+# retry-trigger: 2026-08-06T21:54+03:00
