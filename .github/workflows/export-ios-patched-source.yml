@@ -18,6 +18,7 @@ jobs:
         working-directory: ios
         run: |
           set -euo pipefail
+          # Keep this export aligned with the release workflow for diagnostics.
           cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
           test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
           python3 - <<'PY'
