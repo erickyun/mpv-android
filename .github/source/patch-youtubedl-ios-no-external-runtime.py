@@ -19,9 +19,12 @@ new = '''        let effectiveOptions = suppliedOptions ?? defaultOptions
         // the bundled apple-webkit-jsi plugin remains registered independently.
         let builtins = Python.import("builtins")
         effectiveOptions["js_runtimes"] = builtins.dict()
-        effectiveOptions["remote_components"] = builtins.set()
+        // The downloaded yt-dlp zip does not bundle the optional yt-dlp-ejs
+        // distribution. Permit only yt-dlp's official EJS component download;
+        // Apple WebKit JSI executes it on-device without an external runtime.
+        effectiveOptions["remote_components"] = builtins.set(["ejs:github"])
         effectiveOptions["verbose"] = false
-        mpvYTDLPBridgeLog("external JS runtimes disabled; Apple WebKit JSI plugin only")
+        mpvYTDLPBridgeLog("external JS runtimes disabled; Apple WebKit JSI + official ejs:github enabled")
 
         if let rawLogPath = getenv("YTDLP_LOG_PATH") {
 '''
@@ -30,4 +33,4 @@ if old not in text:
 text = text.replace(old, new, 1)
 
 path.write_text(text)
-print(f'Patched {path}: disabled external Deno/Node/QuickJS probing and verbose constructor scan.')
+print(f'Patched {path}: disabled external runtimes, enabled WebKit JSI and official EJS component.')
