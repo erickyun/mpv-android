@@ -1,0 +1,215 @@
+name: Build MPV iOS Routing and Renderer IPA
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - ".github/source/ios-player-v3.part*"
+      - ".github/source/fix-ios-swift6.py"
+      - ".github/source/fix-ios-fullscreen-install.py"
+      - ".github/source/fix-ios-launch-build-setting.py"
+      - ".github/source/fix-ios-player-ux-v2.py"
+      - ".github/source/fix-ios-screenshot-ytdlp.py"
+      - ".github/source/fix-ios-ytdlp-stats-versions.py"
+      - ".github/source/fix-ios-playback-v4.py"
+      - ".github/source/fix-ios-routing-renderer-v5.py"
+      - ".github/source/generate-mpv-icon.py"
+      - ".github/workflows/release-ios-routing-renderer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-routing-renderer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build unsigned MPV iOS 1.5 IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Extract and patch iOS source
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          encoded = Path('MPVTorBox-source.tar.xz.b64').read_text().strip()
+          Path('MPVTorBox-source.tar.xz').write_bytes(base64.b64decode(encoded, validate=True))
+          PY
+          xz -t MPVTorBox-source.tar.xz
+          tar -xJf MPVTorBox-source.tar.xz
+          python3 ../.github/source/fix-ios-swift6.py
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
+
+          mkdir -p MPVTorBox/Resources
+          curl --fail --location --silent --show-error --retry 3 \
+            https://raw.githubusercontent.com/mpv-player/mpv/v0.41.0/player/lua/stats.lua \
+            --output MPVTorBox/Resources/stats.lua
+          test "$(git hash-object MPVTorBox/Resources/stats.lua)" = "dcb78501cb93afd6e883712e3d352d65ba43bcd6"
+
+          grep -q 'shouldUseYTDLP' MPVTorBox/SourceResolver.swift
+          grep -q 'Opening URL directly' MPVTorBox/SourceResolver.swift
+          grep -q 'escapeMPVListItem' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'GLSL shaders' MPVTorBox/Views/StatsOverlay.swift
+          grep -q 'formatDebandSettings' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'MARKETING_VERSION: 1.5.0' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: 15' project.yml
+
+      - name: Generate official MPV app icon
+        working-directory: ios
+        run: python3 ../.github/source/generate-mpv-icon.py
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox
+
+      - name: Build device app without signing
+        id: ios_build
+        continue-on-error: true
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MPVTorBox.xcodeproj \
+            -scheme MPVTorBox \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee xcodebuild.log
+
+      - name: Print compiler errors
+        if: always()
+        working-directory: ios
+        run: |
+          grep -nE "(^|[[:space:]])(error:|fatal error:)" xcodebuild.log | tail -160 | tee compiler-errors.txt || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-iOS-1.5-build-log
+          path: |
+            ios/xcodebuild.log
+            ios/compiler-errors.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop after failed build
+        if: steps.ios_build.outcome != 'success'
+        run: exit 1
+
+      - name: Package and verify unsigned IPA
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          find "$APP_PATH" -iname 'stats.lua' -print -quit | grep -q 'stats.lua'
+
+          python3 - "$APP_PATH/Info.plist" <<'PY'
+          import plistlib
+          import sys
+          path = sys.argv[1]
+          with open(path, 'rb') as stream:
+              info = plistlib.load(stream)
+          info.pop('UILaunchScreen', None)
+          info['UILaunchStoryboardName'] = 'LaunchScreen'
+          info['CFBundleDisplayName'] = 'MPV'
+          info['CFBundleName'] = 'MPV'
+          info['CFBundleShortVersionString'] = '1.5.0'
+          info['CFBundleVersion'] = '15'
+          info['UIFileSharingEnabled'] = True
+          info['LSSupportsOpeningDocumentsInPlace'] = True
+          with open(path, 'wb') as stream:
+              plistlib.dump(info, stream, fmt=plistlib.FMT_BINARY, sort_keys=False)
+          PY
+
+          rm -rf Payload release
+          mkdir -p Payload release
+          cp -R "$APP_PATH" Payload/MPV.app
+          /usr/bin/zip -qry release/MPV-iOS-unsigned.ipa Payload
+
+          python3 - release/MPV-iOS-unsigned.ipa <<'PY'
+          import plistlib
+          import sys
+          import zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              info = plistlib.loads(archive.read('Payload/MPV.app/Info.plist'))
+              expected = {
+                  'CFBundleDisplayName': 'MPV',
+                  'CFBundleName': 'MPV',
+                  'CFBundleShortVersionString': '1.5.0',
+                  'CFBundleVersion': '15',
+                  'UILaunchStoryboardName': 'LaunchScreen',
+                  'UIFileSharingEnabled': True,
+                  'LSSupportsOpeningDocumentsInPlace': True,
+              }
+              for key, value in expected.items():
+                  if info.get(key) != value:
+                      raise SystemExit(f'{key}={info.get(key)!r}, expected {value!r}')
+              names = archive.namelist()
+              if not any(name.lower().endswith('/stats.lua') for name in names):
+                  raise SystemExit('stats.lua is missing from the IPA')
+              if not info.get('CFBundleURLTypes') or not info.get('CFBundleDocumentTypes'):
+                  raise SystemExit('URL or document handlers are missing')
+              print('Verified MPV iOS 1.5 IPA:', expected)
+          PY
+
+          shasum -a 256 release/MPV-iOS-unsigned.ipa > release/SHA256SUMS.txt
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-iOS-1.5-unsigned
+          path: |
+            ios/release/MPV-iOS-unsigned.ipa
+            ios/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ios-routing-renderer-${{ github.run_number }}
+        run: |
+          gh release create "$TAG" \
+            ios/release/MPV-iOS-unsigned.ipa \
+            ios/release/SHA256SUMS.txt \
+            --target "${GITHUB_SHA}" \
+            --title "MPV iOS 1.5.0 Routing and Renderer" \
+            --notes "MPV 1.5.0 (build 15). Direct media and unknown HTTP URLs bypass yt-dlp immediately; known website page hosts use yt-dlp with a 20-second safety ceiling. yt-dlp User-Agent, Referer, and escaped HTTP headers are passed to mpv. Native Stats Page 2 now reports the active VO/gpu-next path, GPU API/context, profile, scale/cscale/dscale, interpolation, video sync, deband parameters, tone mapping, dithering, and GLSL shader filenames. Unsigned IPA; requires iOS 16+." \
+            --prerelease
