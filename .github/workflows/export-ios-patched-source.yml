@@ -31,6 +31,11 @@ jobs:
           python3 ../.github/source/fix-ios-swift6.py
           python3 ../.github/source/fix-ios-fullscreen-install.py
           python3 ../.github/source/fix-ios-launch-build-setting.py
+          mkdir -p MPVTorBox/Resources
+          curl --fail --location --silent --show-error --retry 3 \
+            https://raw.githubusercontent.com/mpv-player/mpv/v0.41.0/player/lua/stats.lua \
+            --output MPVTorBox/Resources/stats.lua
+          test "$(git hash-object MPVTorBox/Resources/stats.lua)" = "dcb78501cb93afd6e883712e3d352d65ba43bcd6"
           test -f MPVTorBox/YTDLPService.swift
           test -f MPVTorBox/Views/PlayerScreen.swift
           test -f MPVTorBox/Player/MPVMetalViewController.swift
