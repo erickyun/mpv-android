@@ -111,6 +111,7 @@ jobs:
           set -euo pipefail
           BRIDGE_SOURCE="$(find SourcePackages/checkouts -path '*/Sources/YoutubeDL/YoutubeDL.swift' -print -quit)"
           test -n "$BRIDGE_SOURCE"
+          chmod u+w "$BRIDGE_SOURCE"
           python3 ../.github/source/patch-youtubedl-ios-mainthread.py "$BRIDGE_SOURCE"
           grep -q 'Embedded yt-dlp and WebKit must initialize on the iOS main thread' "$BRIDGE_SOURCE"
           grep -q 'socket_timeout": 12' "$BRIDGE_SOURCE"
