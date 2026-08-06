@@ -1,0 +1,46 @@
+name: Export fully patched iOS source
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - ".github/workflows/export-ios-patched-source.yml"
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract and patch source
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          encoded = Path('MPVTorBox-source.tar.xz.b64').read_text().strip()
+          Path('MPVTorBox-source.tar.xz').write_bytes(base64.b64decode(encoded, validate=True))
+          PY
+          xz -t MPVTorBox-source.tar.xz
+          tar -xJf MPVTorBox-source.tar.xz
+          python3 ../.github/source/fix-ios-swift6.py
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
+          test -f MPVTorBox/YTDLPService.swift
+          test -f MPVTorBox/Views/PlayerScreen.swift
+          test -f MPVTorBox/Player/MPVMetalViewController.swift
+          test -f MPVTorBox/Resources/stats.lua
+
+      - name: Upload patched source
+        uses: actions/upload-artifact@v4
+        with:
+          name: MPV-patched-iOS-source
+          path: |
+            ios/MPVTorBox
+            ios/project.yml
+          retention-days: 1
