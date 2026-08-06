@@ -41,7 +41,11 @@ replace_once(
 # and only add actor isolation instead of replacing the method bodies.
 replace_once(
     '    func loadPythonModule(downloadPythonModule: Bool = true) async throws -> PythonObject {\n',
-    '    @MainActor\n    func loadPythonModule(downloadPythonModule: Bool = true) async throws -> PythonObject {\n',
+    '''    // Embedded yt-dlp and WebKit must initialize on the iOS main thread.
+    // SSLContext creation remains inside Python; failures propagate as the real Python error.
+    @MainActor
+    func loadPythonModule(downloadPythonModule: Bool = true) async throws -> PythonObject {
+''',
     'loadPythonModule',
 )
 replace_once(
