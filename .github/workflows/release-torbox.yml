@@ -45,15 +45,51 @@ jobs:
             autoconf automake pkg-config libtool ninja-build \
             gperf zip unzip make perl wget xz-utils bzip2
           python -m pip install --upgrade pip meson
+          git config --global http.version HTTP/1.1
+          git config --global http.lowSpeedLimit 1000
+          git config --global http.lowSpeedTime 120
 
-      - name: Download Android SDK, NDK and native sources
+      - name: Download Android SDK and NDK with retries
         working-directory: buildscripts
         env:
           IN_CI: '1'
-          WGET: wget
+          WGET: wget --tries=5 --timeout=60 --retry-connrefused --waitretry=5
+        shell: bash
         run: |
-          ./include/download-sdk.sh
-          ./include/download-deps.sh
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "SDK/NDK download attempt ${attempt}/3"
+            if ./include/download-sdk.sh; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "SDK/NDK download failed after 3 attempts"
+              exit 1
+            fi
+            rm -rf sdk
+            sleep $((attempt * 15))
+          done
+
+      - name: Download native sources with retries
+        working-directory: buildscripts
+        env:
+          IN_CI: '1'
+          WGET: wget --tries=5 --timeout=60 --retry-connrefused --waitretry=5
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Native source download attempt ${attempt}/3"
+            if ./include/download-deps.sh; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Native source download failed after 3 attempts"
+              exit 1
+            fi
+            rm -rf deps
+            sleep $((attempt * 15))
+          done
 
       - name: Build ARM64 mpv, Python and APK
         working-directory: buildscripts
@@ -106,6 +142,7 @@ jobs:
           - Playlist entries preserve torrent/API file order and display file names
           - TorrServer fallback when TorBox is disabled, unavailable, or cannot resolve a magnet
           - Magnet links accepted in Open URL and Android share actions
+          - Resilient SDK/NDK/native-source downloads with automatic retries
           - ARM64 and universal installable debug APKs
 
           Source commit: ${GITHUB_SHA}
