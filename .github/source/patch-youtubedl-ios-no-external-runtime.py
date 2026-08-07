@@ -2,8 +2,8 @@ from pathlib import Path
 import runpy
 import sys
 
-# This file is intentionally touched to retry the verified iOS 1.9 build after
-# the previous GitHub-hosted macOS runner was cancelled before producing logs.
+# Wrapper for the verified iOS bridge patches. Touching this file intentionally
+# retriggers the release workflow after selector/runtime fixes.
 
 if len(sys.argv) != 2:
     raise SystemExit('usage: patch-youtubedl-ios-no-external-runtime.py /path/to/YoutubeDL.swift')
