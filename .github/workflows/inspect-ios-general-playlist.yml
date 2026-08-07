@@ -1,0 +1,38 @@
+name: Inspect iOS general playlist source
+
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - ".github/workflows/inspect-ios-general-playlist.yml"
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract patched source and print playlist targets
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
+          base64 -d MPVTorBox-source.tar.xz.b64 > MPVTorBox-source.tar.xz
+          tar -xJf MPVTorBox-source.tar.xz
+          python3 ../.github/source/fix-ios-swift6.py
+          python3 ../.github/source/fix-ios-fullscreen-install.py
+          python3 ../.github/source/fix-ios-launch-build-setting.py
+          python3 ../.github/source/fix-ios-ytdlp-webkit-v6.py
+          python3 ../.github/source/fix-ios-webkit-frameworks.py
+          python3 ../.github/source/fix-ios-ytdlp-mainthread-logs-v7.py
+          python3 ../.github/source/fix-ios-ytdlp-hybrid-v8.py
+          python3 ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
+          echo '===== TorBoxService.swift ====='
+          cat MPVTorBox/TorBoxService.swift
+          echo '===== PlayerScreen.swift ====='
+          cat MPVTorBox/Views/PlayerScreen.swift
+          echo '===== ContentView.swift ====='
+          cat MPVTorBox/ContentView.swift
+          echo '===== SourceResolver.swift ====='
+          cat MPVTorBox/SourceResolver.swift
