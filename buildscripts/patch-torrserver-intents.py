@@ -45,13 +45,15 @@ replace_once(
 ''',
 )
 
-# Resolve the first launch before libmpv sees the magnet URL. This does not
-# depend on mpv's Lua script auto-loading behavior.
+# Resolve magnets through TorBox first. When TorBox is disabled, not configured,
+# or fails to resolve the magnet, preserve TorrServer as the fallback provider.
 replace_once(
     activity,
     '''        val filepath = parsePathFromIntent(intent)
 ''',
-    '''        val filepath = parsePathFromIntent(intent)?.let { TorrServer.resolve(this, it) }
+    '''        val filepath = parsePathFromIntent(intent)?.let { source ->
+            TorBox.resolve(this, source) ?: TorrServer.resolve(this, source)
+        }
 ''',
 )
 
@@ -60,7 +62,9 @@ replace_once(
     activity,
     '''        val filepath = intent?.let { parsePathFromIntent(it) }
 ''',
-    '''        val filepath = intent?.let { parsePathFromIntent(it) }?.let { TorrServer.resolve(this, it) }
+    '''        val filepath = intent?.let { parsePathFromIntent(it) }?.let { source ->
+            TorBox.resolve(this, source) ?: TorrServer.resolve(this, source)
+        }
 ''',
 )
 
@@ -115,4 +119,4 @@ replace_once(
 ''',
 )
 
-print("Applied TorrServer direct routing, magnet/Open URL/share/HTTP/idle patches")
+print("Applied TorBox-first routing with TorrServer fallback and magnet/Open URL/share/HTTP/idle patches")
