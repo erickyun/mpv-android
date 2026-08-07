@@ -19,13 +19,18 @@ project = project.replace('MARKETING_VERSION: 1.8.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 18', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-# Apply the MPV on_load -> Swift -> embedded yt-dlp bridge after the verified v9
-# runtime fixes. The release workflow remains on 1.9.0/build 19 for compatibility.
+# Build the embedded yt-dlp integration in two layers. v10 supplies the
+# YoutubeDL-iOS format bridge and mpv.conf plumbing; v11 replaces the fragile
+# Lua script-message hop with mpv's native C on_load hook and a private marker.
 helper = Path(__file__).with_name('fix-ios-mpv-ytdl-hook-v10.py')
 runpy.run_path(str(helper), run_name='__main__')
+helper = Path(__file__).with_name('fix-ios-native-ytdl-hook-v11.py')
+runpy.run_path(str(helper), run_name='__main__')
+
+# Keep the public app version unchanged while iterating on the runtime bridge.
 project = PROJECT.read_text()
 project = project.replace('MARKETING_VERSION: 2.0.0', 'MARKETING_VERSION: 1.9.0', 1)
 project = project.replace('CURRENT_PROJECT_VERSION: 20', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with the embedded MPV ytdl hook bridge.')
+print('Updated MPV iOS 1.9.0 build 19 with the native libmpv embedded yt-dlp hook.')
