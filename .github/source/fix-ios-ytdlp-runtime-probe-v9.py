@@ -26,7 +26,8 @@ PROJECT.write_text(project)
 # v13 opens the selected A/V tracks immediately and propagates Info.duration so
 # MPV has the complete seek range before the remote files are buffered; v14
 # disables the temporary persistent yt-dlp diagnostics; v15 adds a searchable
-# flat-playlist chooser while keeping selected items on the same native hook.
+# flat-playlist chooser; v16 makes playlist handling provider-neutral, exposes
+# TorBox multi-video torrents, and keeps the playlist selectable inside player.
 helper = Path(__file__).with_name('fix-ios-mpv-ytdl-hook-v10.py')
 runpy.run_path(str(helper), run_name='__main__')
 helper = Path(__file__).with_name('fix-ios-native-ytdl-hook-v11.py')
@@ -39,6 +40,8 @@ helper = Path(__file__).with_name('fix-ios-remove-ytdlp-log-v14.py')
 runpy.run_path(str(helper), run_name='__main__')
 helper = Path(__file__).with_name('fix-ios-ytdl-playlist-picker-v15.py')
 runpy.run_path(str(helper), run_name='__main__')
+helper = Path(__file__).with_name('fix-ios-general-playlist-v16.py')
+runpy.run_path(str(helper), run_name='__main__')
 
 # Keep the public app version unchanged while iterating on the runtime bridge.
 project = PROJECT.read_text()
@@ -46,4 +49,4 @@ project = project.replace('MARKETING_VERSION: 2.0.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 20', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with native yt-dlp seeking, playlist picker, and no persistent log.')
+print('Updated MPV iOS 1.9.0 build 19 with native yt-dlp seeking and generic TorBox/yt-dlp playlists.')
