@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Apply torrent URL and Android share fixes
+      - name: Apply TorBox/TorrServer URL and Android share fixes
         run: python buildscripts/patch-torrserver-intents.py
 
       - name: Install build dependencies
@@ -101,8 +101,10 @@ jobs:
           - TorBox magnet resolution and direct streaming
           - TorBox enable/disable switch under Settings > Advanced
           - Password-style TorBox API key field under Settings > Advanced
-          - Automatic selection of the largest playable video in a torrent
-          - TorrServer fallback when TorBox is disabled or unavailable
+          - Single-video torrents open directly
+          - Multi-video torrents expose every playable video as an mpv playlist
+          - Playlist entries preserve torrent/API file order and display file names
+          - TorrServer fallback when TorBox is disabled, unavailable, or cannot resolve a magnet
           - Magnet links accepted in Open URL and Android share actions
           - ARM64 and universal installable debug APKs
 
