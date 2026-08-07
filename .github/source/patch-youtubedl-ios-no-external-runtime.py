@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 import sys
 
 # This file is intentionally touched to retry the verified iOS 1.9 build after
@@ -37,3 +38,8 @@ text = text.replace(old, new, 1)
 
 path.write_text(text)
 print(f'Patched {path}: disabled external runtimes, enabled WebKit JSI and official EJS component.')
+
+# Extend the same bridge with MPV's native ytdl-format selector and flatten
+# bv+ba requested_formats into separate streams for libmpv's EDL input.
+helper = Path(__file__).with_name('patch-youtubedl-ios-mpv-format.py')
+runpy.run_path(str(helper), run_name='__main__')
