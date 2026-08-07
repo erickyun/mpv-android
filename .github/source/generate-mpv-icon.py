@@ -71,3 +71,5 @@ output.mkdir(parents=True, exist_ok=True)
   "info" : { "author" : "xcode", "version" : 1 }
 }
 ''')
+
+# actions-retry-trigger: 2026-08-07T12:13+03:00
