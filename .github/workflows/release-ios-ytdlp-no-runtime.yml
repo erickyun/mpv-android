@@ -14,8 +14,16 @@ on:
       - ".github/source/fix-ios-ytdlp-mainthread-logs-v7.py"
       - ".github/source/fix-ios-ytdlp-hybrid-v8.py"
       - ".github/source/fix-ios-ytdlp-runtime-probe-v9.py"
+      - ".github/source/fix-ios-mpv-ytdl-hook-v10.py"
+      - ".github/source/fix-ios-native-ytdl-hook-v11.py"
+      - ".github/source/fix-ios-native-ytdl-hook-v12.py"
+      - ".github/source/fix-ios-ytdl-seek-duration-v13.py"
+      - ".github/source/fix-ios-remove-ytdlp-log-v14.py"
+      - ".github/source/fix-ios-ytdl-playlist-picker-v15.py"
       - ".github/source/patch-youtubedl-ios-hybrid.py"
       - ".github/source/patch-youtubedl-ios-no-external-runtime.py"
+      - ".github/source/patch-youtubedl-ios-mpv-format.py"
+      - ".github/source/patch-youtubedl-ios-playlist.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-ytdlp-no-runtime.yml"
   workflow_dispatch:
@@ -74,6 +82,8 @@ jobs:
           unzip -tq MPVTorBox/Resources/yt-dlp-apple-webkit-jsi.zip
 
           grep -q 'Running yt-dlp on a worker thread' MPVTorBox/YTDLPService.swift
+          grep -q 'func playlistSelection' MPVTorBox/YTDLPService.swift
+          grep -q 'PlaylistPickerView' MPVTorBox/ContentView.swift
           grep -q 'MARKETING_VERSION: 1.9.0' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: 19' project.yml
 
@@ -112,10 +122,13 @@ jobs:
           chmod u+w "$BRIDGE_SOURCE"
           python3 ../.github/source/patch-youtubedl-ios-hybrid.py "$BRIDGE_SOURCE"
           python3 ../.github/source/patch-youtubedl-ios-no-external-runtime.py "$BRIDGE_SOURCE"
+          python3 ../.github/source/patch-youtubedl-ios-playlist.py "$BRIDGE_SOURCE"
           grep -q 'external JS runtimes disabled' "$BRIDGE_SOURCE"
           grep -q 'effectiveOptions\["js_runtimes"\] = builtins.dict()' "$BRIDGE_SOURCE"
           grep -q 'effectiveOptions\["verbose"\] = false' "$BRIDGE_SOURCE"
           grep -q 'python extract_info begin' "$BRIDGE_SOURCE"
+          grep -q 'extractPlaylistInfo' "$BRIDGE_SOURCE"
+          grep -q 'extract_flat' "$BRIDGE_SOURCE"
 
       - name: Build device app without signing
         id: ios_build
@@ -240,7 +253,7 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV iOS 1.9.0 yt-dlp WebKit-only" \
-            --notes "MPV 1.9.0 (build 19). Disables yt-dlp's default external Deno/Node/QuickJS runtime probing and verbose executable scan during YoutubeDL construction, while retaining the bundled Apple WebKit JSI challenge provider and official EJS component. Python/plugin setup remains on the main actor and extract_info runs on a worker. Detailed logs remain in Files → On My iPhone → MPV → Logs → yt-dlp.log. Unsigned IPA; requires iOS 16+." \
+            --notes "MPV 1.9.0 (build 19). Embedded yt-dlp uses Apple WebKit JSI with no external JavaScript runtime. mpv.conf ytdl-format controls playback format, separate best video + audio streams support full-duration seeking, and playlist-style URLs can show a searchable video picker before playback. Persistent yt-dlp diagnostic logging is disabled. Unsigned IPA; requires iOS 16+." \
             --prerelease
 
 # retry-trigger: 2026-08-06T21:54+03:00
