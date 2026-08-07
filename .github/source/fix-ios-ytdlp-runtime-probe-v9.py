@@ -19,12 +19,15 @@ project = project.replace('MARKETING_VERSION: 1.8.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 18', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-# Build the embedded yt-dlp integration in two layers. v10 supplies the
+# Build the embedded yt-dlp integration in layers. v10 supplies the
 # YoutubeDL-iOS format bridge and mpv.conf plumbing; v11 replaces the fragile
-# Lua script-message hop with mpv's native C on_load hook and a private marker.
+# Lua script-message hop with mpv's native C on_load hook and a private marker;
+# v12 binds the async completion path to the controller's actual mpv handle.
 helper = Path(__file__).with_name('fix-ios-mpv-ytdl-hook-v10.py')
 runpy.run_path(str(helper), run_name='__main__')
 helper = Path(__file__).with_name('fix-ios-native-ytdl-hook-v11.py')
+runpy.run_path(str(helper), run_name='__main__')
+helper = Path(__file__).with_name('fix-ios-native-ytdl-hook-v12.py')
 runpy.run_path(str(helper), run_name='__main__')
 
 # Keep the public app version unchanged while iterating on the runtime bridge.
