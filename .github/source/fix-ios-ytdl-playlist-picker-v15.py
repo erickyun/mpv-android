@@ -147,7 +147,9 @@ replace_once(
 )
 
 # 4) Preflight only URLs that visibly look like a playlist. Normal video URLs
-# keep their current one-extraction path, avoiding extra startup delay.
+# keep their current one-extraction path, avoiding extra startup delay. If a
+# site's flat-playlist metadata fails, preserve the old behavior by opening the
+# URL normally instead of turning metadata failure into a playback failure.
 old_open = '''    private func openSource() {
         let input = sourceText
         let providerSettings = settings.snapshot()
@@ -182,11 +184,15 @@ new_open = '''    private func openSource(skipPlaylistPicker: Bool = false) {
                    providerSettings.ytdlpEnabled,
                    let playlistURL = playlistCandidateURL(from: input) {
                     statusText = "Reading playlist with yt-dlp…"
-                    if let selection = try await ytdlp.playlistSelection(url: playlistURL) {
-                        playlistSelection = selection
-                        statusText = "Choose one of \\(selection.items.count) videos."
-                        isResolving = false
-                        return
+                    do {
+                        if let selection = try await ytdlp.playlistSelection(url: playlistURL) {
+                            playlistSelection = selection
+                            statusText = "Choose one of \\(selection.items.count) videos."
+                            isResolving = false
+                            return
+                        }
+                    } catch {
+                        statusText = "Playlist list unavailable; opening the URL normally…"
                     }
                 }
 
@@ -239,7 +245,7 @@ replace_once(CONTENT, old_open, new_open, 'playlist-aware openSource')
 
 # 5) Add the picker itself. It intentionally shows only inexpensive metadata
 # obtained from --flat-playlist. Search is local and selection dismisses the
-# sheet before launching the player.
+# sheet before launching the player. Keep the empty-search UI iOS 16 compatible.
 content_text = CONTENT.read_text()
 if 'private struct PlaylistPickerView: View {' in content_text:
     raise SystemExit('PlaylistPickerView already exists')
@@ -294,7 +300,13 @@ private struct PlaylistPickerView: View {
             }
             .overlay {
                 if filteredItems.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
+                    VStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.title2)
+                        Text("No matching videos")
+                            .font(.headline)
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle(selection.title)
@@ -326,6 +338,9 @@ private struct PlaylistPickerView: View {
     }
 }
 '''
+# The raw Python string above intentionally makes backslashes literal. Swift's
+# Environment key path needs exactly one backslash, not two.
+content_text = content_text.replace('@Environment(\\\\.dismiss)', '@Environment(\\.dismiss)')
 CONTENT.write_text(content_text)
 
 print('Added searchable flat-playlist video picker before native yt-dlp playback.')
