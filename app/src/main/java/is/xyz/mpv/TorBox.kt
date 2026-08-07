@@ -6,6 +6,7 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -25,12 +26,18 @@ internal object TorBox {
         "mkv", "mp4", "m4v", "webm", "avi", "mov", "ts", "m2ts", "mts", "wmv", "flv", "mpg", "mpeg"
     )
 
+    private data class PlayableFile(
+        val id: Long,
+        val name: String,
+        val size: Long,
+    )
+
     /**
-     * Resolves a magnet link through TorBox. Returns null when TorBox is disabled,
-     * is not configured, the source is unsupported, or the API request fails.
+     * Resolves a magnet link through TorBox.
      *
-     * Network work runs on a worker thread. The caller waits for a bounded amount
-     * of time because MPVActivity needs a final URL before handing it to libmpv.
+     * A torrent containing one playable video returns the direct TorBox URL.
+     * A torrent containing multiple playable videos returns a local M3U playlist
+     * containing every TorBox direct URL, preserving the torrent file order.
      */
     fun resolve(context: Context, source: String): String? {
         if (!source.startsWith("magnet:", ignoreCase = true))
@@ -49,7 +56,7 @@ internal object TorBox {
         val result = AtomicReference<String?>(null)
         val worker = Thread({
             try {
-                result.set(resolveNetwork(apiKey, source))
+                result.set(resolveNetwork(context, apiKey, source))
             } catch (error: Exception) {
                 Log.e(TAG, "TorBox resolution failed", error)
             }
@@ -65,10 +72,17 @@ internal object TorBox {
         return result.get()
     }
 
-    private fun resolveNetwork(apiKey: String, magnet: String): String {
+    private fun resolveNetwork(context: Context, apiKey: String, magnet: String): String {
         val torrentId = createTorrent(apiKey, magnet)
-        val fileId = waitForPlayableFile(apiKey, torrentId)
-        return requestDownloadLink(apiKey, torrentId, fileId)
+        val files = waitForPlayableFiles(apiKey, torrentId)
+        val resolved = files.map { file ->
+            file to requestDownloadLink(apiKey, torrentId, file.id)
+        }
+
+        if (resolved.size == 1)
+            return resolved.first().second
+
+        return createPlaylist(context, torrentId, resolved)
     }
 
     private fun createTorrent(apiKey: String, magnet: String): Long {
@@ -91,7 +105,7 @@ internal object TorBox {
             ?: throw IllegalStateException("TorBox did not return a torrent ID")
     }
 
-    private fun waitForPlayableFile(apiKey: String, torrentId: Long): Long {
+    private fun waitForPlayableFiles(apiKey: String, torrentId: Long): List<PlayableFile> {
         var lastState = "unknown"
         repeat(15) {
             val connection = openConnection("$API_BASE/mylist?id=$torrentId&bypass_cache=true", "GET", apiKey)
@@ -100,40 +114,58 @@ internal object TorBox {
             val torrent = findTorrentObject(json.opt("data"), torrentId)
             if (torrent != null) {
                 lastState = torrent.optString("download_state", torrent.optString("status", "unknown"))
-                chooseFile(torrent.optJSONArray("files"))?.let { return it }
+                chooseFiles(torrent.optJSONArray("files")).takeIf { it.isNotEmpty() }?.let { return it }
             }
             Thread.sleep(2_000L)
         }
         throw IllegalStateException("TorBox torrent is not ready (state: $lastState)")
     }
 
-    private fun chooseFile(files: JSONArray?): Long? {
+    private fun chooseFiles(files: JSONArray?): List<PlayableFile> {
         if (files == null || files.length() == 0)
-            return null
+            return emptyList()
 
-        var bestVideoId: Long? = null
-        var bestVideoSize = Long.MIN_VALUE
-        var fallbackId: Long? = null
-        var fallbackSize = Long.MIN_VALUE
+        val videos = mutableListOf<PlayableFile>()
+        var fallback: PlayableFile? = null
 
         for (index in 0 until files.length()) {
             val file = files.optJSONObject(index) ?: continue
             val id = findLong(file, "id", "file_id") ?: continue
-            val name = file.optString("name", file.optString("short_name", file.optString("path", "")))
+            val name = file.optString("name", file.optString("short_name", file.optString("path", "file-$id")))
             val size = findLong(file, "size", "bytes") ?: 0L
+            val candidate = PlayableFile(id, name.ifBlank { "file-$id" }, size)
 
-            if (size > fallbackSize) {
-                fallbackSize = size
-                fallbackId = id
-            }
+            if (fallback == null || candidate.size > fallback!!.size)
+                fallback = candidate
 
-            val extension = name.substringAfterLast('.', "").lowercase()
-            if (extension in videoExtensions && size > bestVideoSize) {
-                bestVideoSize = size
-                bestVideoId = id
+            val extension = candidate.name.substringAfterLast('.', "").lowercase()
+            if (extension in videoExtensions)
+                videos += candidate
+        }
+
+        // Keep the API/torrent order so episodes appear naturally in mpv's playlist.
+        return if (videos.isNotEmpty()) videos else listOfNotNull(fallback)
+    }
+
+    private fun createPlaylist(
+        context: Context,
+        torrentId: Long,
+        entries: List<Pair<PlayableFile, String>>,
+    ): String {
+        val directory = File(context.cacheDir, "torbox-playlists").apply { mkdirs() }
+        val playlist = File(directory, "torbox-$torrentId.m3u")
+
+        playlist.bufferedWriter(StandardCharsets.UTF_8).use { writer ->
+            writer.appendLine("#EXTM3U")
+            entries.forEach { (file, url) ->
+                val title = file.name.replace('\r', ' ').replace('\n', ' ')
+                writer.appendLine("#EXTINF:-1,$title")
+                writer.appendLine(url)
             }
         }
-        return bestVideoId ?: fallbackId
+
+        Log.i(TAG, "Created TorBox playlist with ${entries.size} videos: ${playlist.absolutePath}")
+        return playlist.absolutePath
     }
 
     private fun requestDownloadLink(apiKey: String, torrentId: Long, fileId: Long): String {
