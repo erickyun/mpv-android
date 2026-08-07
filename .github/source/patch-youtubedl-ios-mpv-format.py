@@ -27,7 +27,7 @@ replace_once(
         if let rawFormat = getenv("MPV_YTDL_FORMAT") {
             let requestedFormat = String(cString: rawFormat)
             if !requestedFormat.isEmpty && requestedFormat != "ytdl" {
-                effectiveOptions["format"] = requestedFormat
+                effectiveOptions["format"] = requestedFormat.pythonObject
                 mpvYTDLPBridgeLog("using MPV ytdl-format: \\(requestedFormat)")
             }
         }
