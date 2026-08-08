@@ -53,7 +53,7 @@ jobs:
         working-directory: buildscripts
         env:
           IN_CI: '1'
-          WGET: wget --tries=5 --timeout=60 --retry-connrefused --waitretry=5
+          WGET: wget --tries=5 --timeout=60 --read-timeout=60 --retry-connrefused --waitretry=5
         shell: bash
         run: |
           set -euo pipefail
@@ -70,25 +70,37 @@ jobs:
             sleep $((attempt * 15))
           done
 
-      - name: Download native sources with retries
+      - name: Download native sources with clean retries
         working-directory: buildscripts
         env:
           IN_CI: '1'
-          WGET: wget --tries=5 --timeout=60 --retry-connrefused --waitretry=5
+          WGET: wget --tries=5 --timeout=60 --read-timeout=60 --retry-connrefused --waitretry=5
         shell: bash
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
             echo "Native source download attempt ${attempt}/3"
-            if ./include/download-deps.sh; then
+
+            # download-deps.sh streams archives through `wget | tar` and creates
+            # dependency directories before the download completes. Start every
+            # retry clean so a partial directory can never be mistaken for a
+            # successfully downloaded dependency.
+            rm -rf deps
+
+            # The upstream script only uses `bash -e`; explicitly enable
+            # pipefail so a failed wget in `wget | tar` fails the attempt even
+            # when tar itself exits successfully.
+            if bash -o pipefail ./include/download-deps.sh; then
               exit 0
             fi
+
             if [ "$attempt" -eq 3 ]; then
-              echo "Native source download failed after 3 attempts"
+              echo "Native source download failed after 3 clean attempts"
               exit 1
             fi
+
             rm -rf deps
-            sleep $((attempt * 15))
+            sleep $((attempt * 20))
           done
 
       - name: Build ARM64 mpv, Python and APK
@@ -142,7 +154,7 @@ jobs:
           - Playlist entries preserve torrent/API file order and display file names
           - TorrServer fallback when TorBox is disabled, unavailable, or cannot resolve a magnet
           - Magnet links accepted in Open URL and Android share actions
-          - Resilient SDK/NDK/native-source downloads with automatic retries
+          - Resilient SDK/NDK/native-source downloads with clean automatic retries
           - ARM64 and universal installable debug APKs
 
           Source commit: ${GITHUB_SHA}
