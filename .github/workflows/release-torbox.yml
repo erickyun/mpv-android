@@ -87,10 +87,9 @@ jobs:
             # successfully downloaded dependency.
             rm -rf deps
 
-            # The upstream script only uses `bash -e`; explicitly enable
-            # pipefail so a failed wget in `wget | tar` fails the attempt even
-            # when tar itself exits successfully.
-            if bash -o pipefail ./include/download-deps.sh; then
+            # Preserve upstream errexit behavior and add pipefail so failures
+            # from either git clone or wget inside `wget | tar` fail this attempt.
+            if bash -e -o pipefail ./include/download-deps.sh; then
               exit 0
             fi
 
