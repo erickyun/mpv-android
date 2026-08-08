@@ -30,5 +30,7 @@ jobs:
           python3 ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
           echo '===== MPVMetalViewController.swift ====='
           cat MPVTorBox/Player/MPVMetalViewController.swift
+          echo '===== MPVMetalPlayerView.swift ====='
+          cat MPVTorBox/Player/MPVMetalPlayerView.swift
           echo '===== PlayerScreen.swift ====='
           cat MPVTorBox/Views/PlayerScreen.swift
