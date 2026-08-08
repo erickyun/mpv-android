@@ -30,9 +30,9 @@ PROJECT.write_text(project)
 # TorBox multi-video torrents, and keeps the playlist selectable inside player;
 # v17 avoids the flat-playlist Python bridge for ordinary single-video URLs,
 # while keeping playlist detection for YouTube watch URLs with ?list=... and
-# other visibly collection-shaped URLs; v18 fixes rotation rendering by making
-# the UIView controller's live bounds the sole Metal viewport authority instead
-# of replaying stale portrait UIWindow/SwiftUI geometry snapshots.
+# other visibly collection-shaped URLs; v18 fixes stale geometry replay during
+# rotation; v19 performs the user's proven Video None -> same track recovery
+# automatically after the new orientation has fully settled.
 helper = Path(__file__).with_name('fix-ios-mpv-ytdl-hook-v10.py')
 runpy.run_path(str(helper), run_name='__main__')
 helper = Path(__file__).with_name('fix-ios-native-ytdl-hook-v11.py')
@@ -51,6 +51,8 @@ helper = Path(__file__).with_name('fix-ios-youtube-single-url-crash-v17.py')
 runpy.run_path(str(helper), run_name='__main__')
 helper = Path(__file__).with_name('fix-ios-landscape-render-resize-v18.py')
 runpy.run_path(str(helper), run_name='__main__')
+helper = Path(__file__).with_name('fix-ios-rotation-video-track-reopen-v19.py')
+runpy.run_path(str(helper), run_name='__main__')
 
 # Keep the public app version unchanged while iterating on the runtime bridge.
 project = PROJECT.read_text()
@@ -58,4 +60,4 @@ project = project.replace('MARKETING_VERSION: 2.0.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 20', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with native yt-dlp, playlists, safe YouTube routing, and live landscape Metal resizing.')
+print('Updated MPV iOS 1.9.0 build 19 with native yt-dlp, playlists, and automatic post-rotation video-output recovery.')
