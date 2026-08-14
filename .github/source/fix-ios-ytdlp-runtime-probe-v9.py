@@ -19,10 +19,10 @@ project = project.replace('MARKETING_VERSION: 1.8.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 18', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-# Build the embedded yt-dlp/player integration in layers. v20 is the public
-# feature step: generic yt-dlp routing with Unsupported -> direct fallback,
-# TorBox dashboard download links, chapter menus (including yt-dlp chapters),
-# and live gpu-next deband controls inside Playback settings.
+# Build the embedded yt-dlp/player integration in layers. v20 adds generic
+# yt-dlp routing with Unsupported -> direct fallback, TorBox dashboard download
+# links, chapter menus (including yt-dlp chapters), and live gpu-next deband
+# controls inside Playback settings.
 helpers = [
     'fix-ios-mpv-ytdl-hook-v10.py',
     'fix-ios-native-ytdl-hook-v11.py',
@@ -40,16 +40,14 @@ for name in helpers:
     helper = Path(__file__).with_name(name)
     runpy.run_path(str(helper), run_name='__main__')
 
-# Earlier internal helpers temporarily use 2.0/20 and the old chain rolled it
-# back to 1.9/19. v20 is now the actual public 2.0 release, so normalize and
-# assert those final version markers instead of rolling them back.
+# Keep the current public app version while adding the v20 feature layer. Some
+# internal helpers temporarily use 2.0/20, so normalize back for the existing
+# signed/unsigned IPA verification workflow.
 project = PROJECT.read_text()
-if 'MARKETING_VERSION: 1.9.0' in project:
-    project = project.replace('MARKETING_VERSION: 1.9.0', 'MARKETING_VERSION: 2.0.0', 1)
-if 'CURRENT_PROJECT_VERSION: 19' in project:
-    project = project.replace('CURRENT_PROJECT_VERSION: 19', 'CURRENT_PROJECT_VERSION: 20', 1)
-if 'MARKETING_VERSION: 2.0.0' not in project or 'CURRENT_PROJECT_VERSION: 20' not in project:
-    raise SystemExit('MPV iOS 2.0.0 build 20 version markers were not produced')
+project = project.replace('MARKETING_VERSION: 2.0.0', 'MARKETING_VERSION: 1.9.0', 1)
+project = project.replace('CURRENT_PROJECT_VERSION: 20', 'CURRENT_PROJECT_VERSION: 19', 1)
+if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' not in project:
+    raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 2.0.0 build 20 with generic yt-dlp routing, TorBox dashboard URLs, chapters, live deband, and rotation recovery.')
+print('Updated MPV iOS 1.9.0 build 19 with generic yt-dlp routing, TorBox dashboard URLs, chapters, live deband, and rotation recovery.')
