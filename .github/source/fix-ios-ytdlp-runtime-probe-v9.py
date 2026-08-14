@@ -52,4 +52,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with centered landscape controls, generic yt-dlp, TorBox dashboard URLs, chapters, live deband, verified PNG screenshots, and rotation recovery.')
+print('Updated MPV iOS 1.9.0 build 19 with centered landscape controls, generic yt-dlp, TorBox dashboard URLs, chapters, live deband, verified PNG screenshots, and rotation recovery. v22 retry 2')
