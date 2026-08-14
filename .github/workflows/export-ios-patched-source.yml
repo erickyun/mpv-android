@@ -44,7 +44,7 @@ jobs:
           test -f MPVTorBox/YTDLPService.swift
           test -f MPVTorBox/Views/PlayerScreen.swift
           test -f MPVTorBox/Player/MPVMetalViewController.swift
-          grep -q 'fix-ios-rotation-video-track-reopen-v19' ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
+          grep -q 'fix-ios-routing-torbox-chapters-deband-v20' ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
 
       - name: Upload patched source
         uses: actions/upload-artifact@v4
@@ -54,3 +54,5 @@ jobs:
             ios/MPVTorBox
             ios/project.yml
           retention-days: 1
+
+# refresh-v20-source: 2026-08-14T16:56+03:00
