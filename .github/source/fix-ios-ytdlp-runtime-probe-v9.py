@@ -23,6 +23,8 @@ PROJECT.write_text(project)
 # yt-dlp routing with Unsupported -> direct fallback, TorBox dashboard links,
 # chapters, and live deband. v21 centers the landscape toolbar and makes every
 # deband parameter update through mpv's runtime set command with live readback.
+# v22 makes screenshots verified PNG files with subtitles and automatic
+# software/GPU fallback instead of reporting success before a file exists.
 helpers = [
     'fix-ios-mpv-ytdl-hook-v10.py',
     'fix-ios-native-ytdl-hook-v11.py',
@@ -36,6 +38,7 @@ helpers = [
     'fix-ios-rotation-video-track-reopen-v19.py',
     'fix-ios-routing-torbox-chapters-deband-v20.py',
     'fix-ios-toolbar-deband-v21.py',
+    'fix-ios-screenshot-png-v22.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
@@ -49,4 +52,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with centered landscape controls, generic yt-dlp, TorBox dashboard URLs, chapters, reliable live deband, and rotation recovery.')
+print('Updated MPV iOS 1.9.0 build 19 with centered landscape controls, generic yt-dlp, TorBox dashboard URLs, chapters, live deband, verified PNG screenshots, and rotation recovery.')
