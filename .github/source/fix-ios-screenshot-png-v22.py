@@ -11,22 +11,19 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
         raise SystemExit(f'{label}: anchor not found in {path}')
     path.write_text(text.replace(old, new, 1))
 
-# Do not claim success before libmpv has actually written the file.
+# Do not claim success before libmpv has actually written the file. Keep these
+# replacements independent of the toolbar's indentation/layout from v21.
 replace_once(
     PLAYER,
-    '''                        if coordinator.takeScreenshot() {
-                            flash("Saved to Files → On My iPhone → MPV → Screenshots")
-                        } else {
-                            flash("Could not create the Screenshots folder")
-                        }
-''',
-    '''                        if coordinator.takeScreenshot() {
-                            flash("Saving PNG…")
-                        } else {
-                            flash("Could not start PNG screenshot")
-                        }
-''',
-    'screenshot toolbar status',
+    'flash("Saved to Files → On My iPhone → MPV → Screenshots")',
+    'flash("Saving PNG…")',
+    'screenshot success label',
+)
+replace_once(
+    PLAYER,
+    'flash("Could not create the Screenshots folder")',
+    'flash("Could not start PNG screenshot")',
+    'screenshot failure label',
 )
 
 # Force a real PNG, include subtitles, verify that the file appears, and retry
