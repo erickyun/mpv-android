@@ -19,12 +19,6 @@ project = project.replace('MARKETING_VERSION: 1.8.0', 'MARKETING_VERSION: 1.9.0'
 project = project.replace('CURRENT_PROJECT_VERSION: 18', 'CURRENT_PROJECT_VERSION: 19', 1)
 PROJECT.write_text(project)
 
-# Build the embedded yt-dlp/player integration in layers. v20 adds generic
-# yt-dlp routing with Unsupported -> direct fallback, TorBox dashboard links,
-# chapters, and live deband. v21 centers the landscape toolbar and makes every
-# deband parameter update through mpv's runtime set command with live readback.
-# v22 makes screenshots verified PNG files with subtitles and automatic
-# software/GPU fallback instead of reporting success before a file exists.
 helpers = [
     'fix-ios-mpv-ytdl-hook-v10.py',
     'fix-ios-native-ytdl-hook-v11.py',
@@ -39,12 +33,12 @@ helpers = [
     'fix-ios-routing-torbox-chapters-deband-v20.py',
     'fix-ios-toolbar-deband-v21.py',
     'fix-ios-screenshot-png-v22.py',
+    'fix-ios-screenshot-raw-v23.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
     runpy.run_path(str(helper), run_name='__main__')
 
-# Keep the current public app version while iterating on feature layers.
 project = PROJECT.read_text()
 project = project.replace('MARKETING_VERSION: 2.0.0', 'MARKETING_VERSION: 1.9.0', 1)
 project = project.replace('CURRENT_PROJECT_VERSION: 20', 'CURRENT_PROJECT_VERSION: 19', 1)
@@ -52,4 +46,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with centered landscape controls, generic yt-dlp, TorBox dashboard URLs, chapters, live deband, verified PNG screenshots, and rotation recovery. v22 retry 2')
+print('Updated MPV iOS 1.9.0 build 19 with v23 screenshot-raw PNG capture plus prior yt-dlp, TorBox, chapters, deband, centered toolbar, and rotation fixes.')
