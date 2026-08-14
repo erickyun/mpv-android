@@ -18,7 +18,6 @@ jobs:
         working-directory: ios
         run: |
           set -euo pipefail
-          # Keep this export aligned with the release workflow for diagnostics.
           cat ../.github/source/ios-player-v3.part* > MPVTorBox-source.tar.xz.b64
           test "$(wc -c < MPVTorBox-source.tar.xz.b64 | tr -d ' ')" = "27096"
           python3 - <<'PY'
@@ -32,6 +31,11 @@ jobs:
           python3 ../.github/source/fix-ios-swift6.py
           python3 ../.github/source/fix-ios-fullscreen-install.py
           python3 ../.github/source/fix-ios-launch-build-setting.py
+          python3 ../.github/source/fix-ios-ytdlp-webkit-v6.py
+          python3 ../.github/source/fix-ios-webkit-frameworks.py
+          python3 ../.github/source/fix-ios-ytdlp-mainthread-logs-v7.py
+          python3 ../.github/source/fix-ios-ytdlp-hybrid-v8.py
+          python3 ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
           mkdir -p MPVTorBox/Resources
           curl --fail --location --silent --show-error --retry 3 \
             https://raw.githubusercontent.com/mpv-player/mpv/v0.41.0/player/lua/stats.lua \
@@ -40,12 +44,12 @@ jobs:
           test -f MPVTorBox/YTDLPService.swift
           test -f MPVTorBox/Views/PlayerScreen.swift
           test -f MPVTorBox/Player/MPVMetalViewController.swift
-          test -f MPVTorBox/Resources/stats.lua
+          grep -q 'fix-ios-rotation-video-track-reopen-v19' ../.github/source/fix-ios-ytdlp-runtime-probe-v9.py
 
       - name: Upload patched source
         uses: actions/upload-artifact@v4
         with:
-          name: MPV-patched-iOS-source
+          name: MPV-current-patched-iOS-source
           path: |
             ios/MPVTorBox
             ios/project.yml
