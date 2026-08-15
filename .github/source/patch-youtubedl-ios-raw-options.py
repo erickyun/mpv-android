@@ -31,6 +31,12 @@ new = '''        if let rawFormat = getenv("MPV_YTDL_FORMAT") {
             let mainModule = Python.import("__main__")
             let rawOptionsSource = #"""
 import json
+import os
+
+def _mpv_ios_truthy(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {'1', 'yes', 'true', 'on', 'enable', 'enabled'}
 
 def _mpv_ios_apply_raw_options(base, raw_json):
     try:
@@ -38,6 +44,22 @@ def _mpv_ios_apply_raw_options(base, raw_json):
         raw = json.loads(raw_json)
         if not isinstance(raw, dict):
             return {'ok': False, 'error': 'ytdl-raw-options is not a map', 'keys': []}
+
+        # MPV-iOS private option. It is consumed by the bridge and deliberately
+        # removed before yt-dlp's CLI parser sees the remaining raw options.
+        safe_metadata = _mpv_ios_truthy(raw.pop('mpv-ios-safe-metadata', False))
+        os.environ.pop('MPV_IOS_SAFE_METADATA', None)
+        if safe_metadata:
+            os.environ['MPV_IOS_SAFE_METADATA'] = '1'
+            # Playback never needs metadata sidecar files. Force the risky
+            # thumbnail/file-writing paths off while safe mode is enabled.
+            base['writethumbnail'] = False
+            base['list_thumbnails'] = False
+            base['writeinfojson'] = False
+            base['writedescription'] = False
+            base['getcomments'] = False
+            base['embedthumbnail'] = False
+            base['convertthumbnails'] = None
 
         argv = []
         explicit = set()
@@ -80,6 +102,8 @@ def _mpv_ios_apply_raw_options(base, raw_json):
         if 'no-check-certificates' in explicit:
             base['nocheckcertificate'] = True
             changed.append('nocheckcertificate')
+        if safe_metadata:
+            changed.append('mpv-ios-safe-metadata')
 
         return {'ok': True, 'error': '', 'keys': sorted(set(changed))}
     except BaseException as exc:
@@ -102,6 +126,8 @@ def _mpv_ios_apply_raw_options(base, raw_json):
             }
             let changedKeys = Array<String>(rawResult["keys"]) ?? []
             mpvYTDLPBridgeLog("applied ytdl-raw-options keys: \\(changedKeys.joined(separator: ","))")
+        } else {
+            unsetenv("MPV_IOS_SAFE_METADATA")
         }
 
         if let rawLogPath = getenv("YTDLP_LOG_PATH") {
@@ -110,5 +136,62 @@ def _mpv_ios_apply_raw_options(base, raw_json):
 if old not in text:
     raise SystemExit('MPV ytdl-format anchor was not found')
 text = text.replace(old, new, 1)
+
+old_extract = '''        print(#function, url)
+        mpvYTDLPBridgeLog("python extract_info begin; main=\\(Thread.isMainThread)")
+        let info = try pythonObject.extract_info.throwing.dynamicallyCall(withKeywordArguments: ["": url.absoluteString, "download": false, "process": true])
+        mpvYTDLPBridgeLog("python extract_info complete")
+        print(info)
+'''
+new_extract = '''        print(#function, url)
+        mpvYTDLPBridgeLog("python extract_info begin; main=\\(Thread.isMainThread)")
+        var info = try pythonObject.extract_info.throwing.dynamicallyCall(withKeywordArguments: ["": url.absoluteString, "download": false, "process": true])
+        mpvYTDLPBridgeLog("python extract_info complete")
+
+        if getenv("MPV_IOS_SAFE_METADATA") != nil {
+            let builtins = Python.import("builtins")
+            let mainModule = Python.import("__main__")
+            let sanitizerSource = #"""
+def _mpv_ios_safe_metadata(ydl, info):
+    try:
+        try:
+            cleaned = ydl.sanitize_info(info, remove_private_keys=True)
+        except TypeError:
+            cleaned = ydl.sanitize_info(info)
+    except BaseException:
+        cleaned = info
+
+    def scrub(value):
+        if isinstance(value, dict):
+            # These fields are not needed for playback and have historically
+            # contained malformed URLs/extensions or huge/non-JSON payloads.
+            for key in (
+                'thumbnail', 'thumbnails', 'comments', 'heatmap',
+                'automatic_captions', '__post_extractor',
+                'requested_downloads', 'requested_subtitles',
+            ):
+                value.pop(key, None)
+            for child in list(value.values()):
+                if isinstance(child, (dict, list, tuple)):
+                    scrub(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                if isinstance(child, (dict, list, tuple)):
+                    scrub(child)
+        return value
+
+    return scrub(cleaned)
+"""#
+            _ = builtins.exec(sanitizerSource, mainModule.__dict__)
+            info = mainModule._mpv_ios_safe_metadata(pythonObject, info)
+            mpvYTDLPBridgeLog("safe metadata protection sanitized extract_info result")
+        }
+        print(info)
+'''
+
+if old_extract not in text:
+    raise SystemExit('extract_info anchor was not found for safe metadata protection')
+text = text.replace(old_extract, new_extract, 1)
+
 path.write_text(text)
-print(f'Patched {path}: generic mpv ytdl-raw-options via yt-dlp parse_options().')
+print(f'Patched {path}: generic mpv ytdl-raw-options plus opt-in safe metadata protection.')
