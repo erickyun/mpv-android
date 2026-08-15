@@ -20,9 +20,19 @@ on:
       - ".github/source/fix-ios-ytdl-seek-duration-v13.py"
       - ".github/source/fix-ios-remove-ytdlp-log-v14.py"
       - ".github/source/fix-ios-ytdl-playlist-picker-v15.py"
+      - ".github/source/fix-ios-general-playlist-v16.py"
+      - ".github/source/fix-ios-youtube-single-url-crash-v17.py"
+      - ".github/source/fix-ios-landscape-render-resize-v18.py"
+      - ".github/source/fix-ios-rotation-video-track-reopen-v19.py"
+      - ".github/source/fix-ios-routing-torbox-chapters-deband-v20.py"
+      - ".github/source/fix-ios-toolbar-deband-v21.py"
+      - ".github/source/fix-ios-screenshot-png-v22.py"
+      - ".github/source/fix-ios-screenshot-raw-v23.py"
+      - ".github/source/fix-ios-ytdl-raw-options-v24.py"
       - ".github/source/patch-youtubedl-ios-hybrid.py"
       - ".github/source/patch-youtubedl-ios-no-external-runtime.py"
       - ".github/source/patch-youtubedl-ios-mpv-format.py"
+      - ".github/source/patch-youtubedl-ios-raw-options.py"
       - ".github/source/patch-youtubedl-ios-playlist.py"
       - ".github/source/generate-mpv-icon.py"
       - ".github/workflows/release-ios-ytdlp-no-runtime.yml"
@@ -84,6 +94,10 @@ jobs:
           grep -q 'Running yt-dlp on a worker thread' MPVTorBox/YTDLPService.swift
           grep -q 'func playlistSelection' MPVTorBox/YTDLPService.swift
           grep -q 'PlaylistPickerView' MPVTorBox/ContentView.swift
+          grep -q 'options/ytdl-raw-options' MPVTorBox/Player/MPVMetalViewController.swift
+          grep -q 'MPV_YTDL_RAW_OPTIONS_JSON' MPVTorBox/YTDLPService.swift
+          grep -q 'normalizedRawOptions' MPVTorBox/YTDLPService.swift
+          grep -q 'cookies.txt' MPVTorBox/Utilities/MPVConfigManager.swift
           grep -q 'MARKETING_VERSION: 1.9.0' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: 19' project.yml
 
@@ -129,6 +143,9 @@ jobs:
           grep -q 'python extract_info begin' "$BRIDGE_SOURCE"
           grep -q 'extractPlaylistInfo' "$BRIDGE_SOURCE"
           grep -q 'extract_flat' "$BRIDGE_SOURCE"
+          grep -q 'MPV_YTDL_RAW_OPTIONS_JSON' "$BRIDGE_SOURCE"
+          grep -q 'from yt_dlp import parse_options' "$BRIDGE_SOURCE"
+          grep -q '_mpv_ios_apply_raw_options' "$BRIDGE_SOURCE"
 
       - name: Build device app without signing
         id: ios_build
@@ -253,7 +270,7 @@ jobs:
             ios/release/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "MPV iOS 1.9.0 yt-dlp WebKit-only" \
-            --notes "MPV 1.9.0 (build 19). Embedded yt-dlp uses Apple WebKit JSI with no external JavaScript runtime. mpv.conf ytdl-format controls playback format, separate best video + audio streams support full-duration seeking, and playlist-style URLs can show a searchable video picker before playback. Persistent yt-dlp diagnostic logging is disabled. Unsigned IPA; requires iOS 16+." \
+            --notes "MPV 1.9.0 (build 19). Embedded yt-dlp uses Apple WebKit JSI with no external JavaScript runtime. mpv.conf ytdl-format controls playback format, and general mpv ytdl-raw-options are parsed by yt-dlp itself; relative cookies=cookies.txt resolves to Files / MPV / MPVConfig / cookies.txt. TorBox dashboard URLs, chapters, live deband controls, raw PNG screenshots, playlist selection, and full-duration seek support are included. Unsigned IPA; requires iOS 16+." \
             --prerelease
 
-# retry-trigger: 2026-08-06T21:54+03:00
+# raw-options-v24: 2026-08-15T10:08+03:00
