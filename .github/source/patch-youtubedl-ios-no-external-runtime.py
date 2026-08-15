@@ -64,3 +64,9 @@ runpy.run_path(str(safe_helper), run_name='__main__')
 # safe mode is global; with a list it is active only for matching host/subdomains.
 decision_helper = Path(__file__).with_name('patch-youtubedl-ios-safe-decision-v30.py')
 runpy.run_path(str(decision_helper), run_name='__main__')
+
+# The original app-side logger was disabled in v14. Restore it conditionally and
+# create the log before any embedded Python/JSI work starts, so hard crashes leave
+# a final native breadcrumb in Files / MPV / Logs / yt-dlp.log.
+early_log_helper = Path(__file__).with_name('fix-ios-ytdl-early-log-v32.py')
+runpy.run_path(str(early_log_helper), run_name='__main__')
