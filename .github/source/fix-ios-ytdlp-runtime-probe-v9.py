@@ -37,7 +37,7 @@ helpers = [
     'fix-ios-ytdl-raw-options-v24.py',
     'fix-ios-metal-layer-stability-v33.py',
     'fix-ios-metal-root-layer-v34.py',
-    'fix-ios-metal-layer-watchdog-v35.py',
+    'fix-ios-metal-watchdog-v35b.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
