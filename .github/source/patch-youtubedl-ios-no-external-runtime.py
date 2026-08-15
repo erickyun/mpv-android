@@ -48,6 +48,12 @@ runpy.run_path(str(helper), run_name='__main__')
 raw_helper = Path(__file__).with_name('patch-youtubedl-ios-raw-options.py')
 runpy.run_path(str(raw_helper), run_name='__main__')
 
+# Consume MPV-iOS-only safe-site/log keys before yt-dlp sees the generic raw
+# option map. The host already turns site-scoped safe mode into the final yes/no
+# decision for the current URL.
+private_helper = Path(__file__).with_name('patch-youtubedl-ios-private-options-v30.py')
+runpy.run_path(str(private_helper), run_name='__main__')
+
 # When the private safe-metadata switch is enabled, keep the entire extractor
 # result and format selection inside Python and return one normalized JSON string
 # to Swift. This bypasses YoutubeDL-iOS 0.0.9's fatalError-prone PythonDecoder.
