@@ -49,8 +49,8 @@ raw_helper = Path(__file__).with_name('patch-youtubedl-ios-raw-options.py')
 runpy.run_path(str(raw_helper), run_name='__main__')
 
 # Consume MPV-iOS-only safe-site/log keys before yt-dlp sees the generic raw
-# option map. The host already turns site-scoped safe mode into the final yes/no
-# decision for the current URL.
+# option map. Comma-separated site lists are reconstructed even when mpv's
+# string-map exposes later domains as empty keys.
 private_helper = Path(__file__).with_name('patch-youtubedl-ios-private-options-v30.py')
 runpy.run_path(str(private_helper), run_name='__main__')
 
@@ -59,3 +59,8 @@ runpy.run_path(str(private_helper), run_name='__main__')
 # to Swift. This bypasses YoutubeDL-iOS 0.0.9's fatalError-prone PythonDecoder.
 safe_helper = Path(__file__).with_name('patch-youtubedl-ios-safe-json-v29.py')
 runpy.run_path(str(safe_helper), run_name='__main__')
+
+# Resolve the final safe-mode decision against the actual URL. With no site list
+# safe mode is global; with a list it is active only for matching host/subdomains.
+decision_helper = Path(__file__).with_name('patch-youtubedl-ios-safe-decision-v30.py')
+runpy.run_path(str(decision_helper), run_name='__main__')
