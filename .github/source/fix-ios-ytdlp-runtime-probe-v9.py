@@ -38,7 +38,7 @@ helpers = [
     'fix-ios-metal-layer-stability-v33.py',
     'fix-ios-metal-root-layer-v34.py',
     'fix-ios-metal-watchdog-v35b.py',
-    'fix-ios-single-video-playlist-preflight-v37.py',
+    'fix-ios-ytdl-single-stream-duration-v38.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
@@ -51,4 +51,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, single-video playlist-preflight routing, and opt-in pre-player diagnostics.')
+print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, and full-duration single-stream yt-dlp playback. v37 single-video preflight routing is intentionally reverted.')
