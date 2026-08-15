@@ -47,3 +47,9 @@ runpy.run_path(str(helper), run_name='__main__')
 # Apply every mpv ytdl-raw-options key/value through yt-dlp's own CLI parser.
 raw_helper = Path(__file__).with_name('patch-youtubedl-ios-raw-options.py')
 runpy.run_path(str(raw_helper), run_name='__main__')
+
+# When the private safe-metadata switch is enabled, keep the entire extractor
+# result and format selection inside Python and return one normalized JSON string
+# to Swift. This bypasses YoutubeDL-iOS 0.0.9's fatalError-prone PythonDecoder.
+safe_helper = Path(__file__).with_name('patch-youtubedl-ios-safe-json-v29.py')
+runpy.run_path(str(safe_helper), run_name='__main__')
