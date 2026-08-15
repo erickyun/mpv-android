@@ -12,6 +12,8 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
         raise SystemExit(f'{label}: anchor not found in {path}')
     path.write_text(text.replace(old, new, 1))
 
+# Native on_load path: read mpv's typed string-map directly. Do not log values
+# because cookies, passwords, tokens, referers, etc. can be sensitive.
 replace_once(
     PLAYER,
     '''        print("[ios-ytdl-native] on_load request: \\(url.absoluteString); format=\\(selector)")
@@ -37,8 +39,40 @@ replace_once(
                     rawOptions: rawOptions
                 )
 ''',
-    'pass raw options',
+    'pass raw options native hook',
 )
+
+# Legacy client-message path is still present as a compatibility fallback. Feed
+# it the same raw-option map so both hook mechanisms behave identically.
+replace_once(
+    PLAYER,
+    '''        let selector = args[3]
+
+        Task { [weak self] in
+''',
+    '''        let selector = args[3]
+        let rawOptions = getStringMap("options/ytdl-raw-options")
+
+        Task { [weak self] in
+''',
+    'read raw options legacy hook',
+)
+replace_once(
+    PLAYER,
+    '''                response = try await YTDLPService.shared.resolveForMPVHook(
+                    url: url,
+                    formatSelector: selector
+                )
+''',
+    '''                response = try await YTDLPService.shared.resolveForMPVHook(
+                    url: url,
+                    formatSelector: selector,
+                    rawOptions: rawOptions
+                )
+''',
+    'pass raw options legacy hook',
+)
+
 replace_once(
     PLAYER,
     '''    private func getString(_ name: String) -> String? {
@@ -227,4 +261,4 @@ replace_once(
     'raw options documentation method',
 )
 
-print('Applied v24: general ytdl-raw-options passthrough and Files-visible cookies.txt path support.')
+print('Applied v24: general ytdl-raw-options passthrough and Files-visible cookies.txt path support for native and legacy hooks.')
