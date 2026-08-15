@@ -36,6 +36,7 @@ helpers = [
     'fix-ios-screenshot-raw-v23.py',
     'fix-ios-ytdl-raw-options-v24.py',
     'fix-ios-metal-layer-stability-v33.py',
+    'fix-ios-metal-root-layer-v34.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
@@ -48,4 +49,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, screenshot-raw PNG capture, TorBox, chapters, deband, centered toolbar, rotation fixes, and CoreAnimation-safe Metal layer updates.')
+print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, screenshot-raw PNG capture, TorBox, chapters, deband, centered toolbar, rotation fixes, and root-layer CoreAnimation-safe Metal lifecycle.')
