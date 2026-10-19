@@ -89,13 +89,19 @@ segStart = text.find("    private func scheduleSurfaceRefreshes() {\n")
 segEnd = text.find("    private func scheduleVideoTrackReopenAfterRotation() {\n", segStart)
 if segStart < 0 or segEnd < 0: raise SystemExit("v51: scheduled refresh boundary missing")
 segment = text[segStart:segEnd]
-segment = segment.replace(
-    "for delay in [0.0, 0.03, 0.10, 0.25, 0.50, 0.85] {",
-    "for delay in [0.0, 0.10, 0.30, 0.65, 0.95] {", 1
-)
-if "0.95" not in segment: raise SystemExit("v51: unexpected delayed refresh format")
-segment = segment.replace("self.refreshVideoSurface(reconfigure: true)",
-                          "self.refreshVideoSurface()", 1)
+# v34/v35 already replaced the old six-timer Metal mutations with a
+# single UIKit layout callback. Preserve the safer implementation as-is.
+# Only tune delays when an older source variant still has the retry loop.
+if "for delay in [0.0, 0.03, 0.10, 0.25, 0.50, 0.85] {" in segment:
+    segment = segment.replace(
+        "for delay in [0.0, 0.03, 0.10, 0.25, 0.50, 0.85] {",
+        "for delay in [0.0, 0.10, 0.30, 0.65, 0.95] {", 1
+    )
+    segment = segment.replace("self.refreshVideoSurface(reconfigure: true)",
+                              "self.refreshVideoSurface()", 1)
+else:
+    if "Kept for compatibility with older call sites" not in segment:
+        raise SystemExit("v51: unknown Metal retry implementation")
 text = text[:segStart] + segment + text[segEnd:]
 # Only reopen after all surface refreshes finished and UIKit has committed its
 # correct portrait/landscape bounds.
