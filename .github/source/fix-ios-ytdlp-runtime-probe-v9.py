@@ -48,6 +48,7 @@ helpers = [
     'fix-ios-playback-reliability-v51.py',
     'fix-ios-zip-prefetch-v52.py',
     'fix-ios-zip-read-ahead-v53.py',
+    'fix-ios-rotation-vo-rebuild-v56.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
