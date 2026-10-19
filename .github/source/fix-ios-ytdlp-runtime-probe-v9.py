@@ -44,6 +44,7 @@ helpers = [
     'fix-ios-remote-zip-v46.py',
     'fix-ios-http-ats-v47.py',
     'fix-ios-http-range-zip-v49.py',
+    'inspect-ios-v50.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
