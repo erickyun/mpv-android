@@ -7,7 +7,7 @@ metal=root/"Player"/"MPVMetalViewController.swift"
 service=root/"ZIPPlaybackService.swift"
 
 new=r'''import Foundation
-import MPVKit
+import Libmpv
 import libarchive
 
 /// A libarchive-powered mpv read-only stream. Unlike extracting the selected
