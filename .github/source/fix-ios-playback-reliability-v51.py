@@ -1,0 +1,181 @@
+from pathlib import Path
+import re
+
+ROOT = Path("MPVTorBox")
+CONFIG = ROOT / "Utilities" / "MPVConfigManager.swift"
+METAL = ROOT / "Player" / "MPVMetalViewController.swift"
+PLAYER = ROOT / "Views" / "PlayerScreen.swift"
+RANGE = ROOT / "RemoteZIPRangeClient.swift"
+REPRESENTABLE = ROOT / "Player" / "MPVMetalPlayerView.swift"
+
+# 1. Replace 256 KB HTTPS requests with 1 MB chunks; reduce expensive
+# URLSession construction/RTT per MB and allow mpv to read ahead. The Range
+# cache is capped independently of mpv's demuxer cache.
+text = RANGE.read_text()
+assert "private let blockSize: Int64 = 256 * 1024" in text
+assert "private let maxCachedBlocks = 96" in text
+text = text.replace("private let blockSize: Int64 = 256 * 1024",
+                    "private let blockSize: Int64 = 1024 * 1024", 1)
+text = text.replace("private let maxCachedBlocks = 96 // <=24 MiB of compressed ZIP bytes",
+                    "private let maxCachedBlocks = 96 // <=96 MiB of compressed ZIP bytes", 1)
+RANGE.write_text(text)
+
+# 2. Genuine mpv demuxer cache options. Users can edit these in Files /
+# On My iPhone / MPV / MPVConfig / mpv.conf. Existing active values stay
+# unchanged; missing defaults are inserted automatically.
+text = CONFIG.read_text()
+needle = "        ensureYTDLFormat(in: mpvConfig)\n"
+if needle not in text:
+    raise SystemExit("v51: MPVConfigManager ensureYTDLFormat anchor missing")
+text = text.replace(needle, needle + "        ensureStreamCacheDefaults(in: mpvConfig)\n", 1)
+anchor = "    private static func ensureYTDLFormat(in url: URL) {\n"
+if anchor not in text:
+    raise SystemExit("v51: MPVConfigManager ensureYTDLFormat function missing")
+helper = r'''    private static func ensureStreamCacheDefaults(in url: URL) {
+        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let activeKeys = Set(existing.split(separator: "\n").compactMap { raw -> String? in
+            let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
+            guard let key = line.split(separator: "=", maxSplits: 1).first else { return nil }
+            return String(key).trimmingCharacters(in: .whitespacesAndNewlines)
+        })
+        // mpv's actual forward cache is bounded by both time and bytes.
+        // A 50-second *target* does not guarantee 50 seconds if bitrate or
+        // network throughput exceeds the configured memory budget.
+        let defaults: [(String, String)] = [
+            ("cache", "yes"),
+            ("cache-secs", "50"),
+            ("demuxer-readahead-secs", "50"),
+            ("demuxer-max-bytes", "256MiB"),
+            ("demuxer-max-back-bytes", "64MiB")
+        ]
+        let lines = defaults.compactMap { key, value -> String? in
+            activeKeys.contains(key) ? nil : "\(key)=\(value)"
+        }
+        guard !lines.isEmpty else { return }
+        append("\n# MPV iOS managed streaming cache v51 — values editable\n"
+            + lines.joined(separator: "\n") + "\n", to: url)
+    }
+
+'''
+text = text.replace(anchor, helper + anchor, 1)
+CONFIG.write_text(text)
+
+# 3. Rotation: the UIView's backing layer is already a MetalLayer, so UIKit
+# owns its frame and drawableSize. The old refreshVideoSurface() still tried
+# to mutate both while MoltenVK and UIKit were resizing. Stop doing that.
+text = METAL.read_text()
+start = text.find("    func refreshVideoSurface(reconfigure: Bool = false) {\n")
+end = text.find("    private func scheduleSurfaceRefreshes() {\n", start)
+if start < 0 or end < 0:
+    raise SystemExit("v51: Metal refreshVideoSurface boundary missing")
+text = text[:start] + r'''    func refreshVideoSurface(reconfigure: Bool = false) {
+        guard Thread.isMainThread, isViewLoaded else { return }
+        guard view.bounds.width > 1, view.bounds.height > 1 else { return }
+        // The UIView's root MetalLayer is owned/sized by UIKit. Do not write
+        // frame, drawableSize, or setNeedsDisplay on it here.
+        let scale = view.window?.screen.nativeScale ?? UIScreen.main.nativeScale
+        if view.contentScaleFactor != scale {
+            view.contentScaleFactor = scale
+        }
+        if reconfigure {
+            command("video-reconfig", args: [])
+        }
+    }
+
+''' + text[end:]
+# Do not send 6 video-reconfig commands while UIKit is transitioning.
+segStart = text.find("    private func scheduleSurfaceRefreshes() {\n")
+segEnd = text.find("    private func scheduleVideoTrackReopenAfterRotation() {\n", segStart)
+if segStart < 0 or segEnd < 0: raise SystemExit("v51: scheduled refresh boundary missing")
+segment = text[segStart:segEnd]
+segment = segment.replace(
+    "for delay in [0.0, 0.03, 0.10, 0.25, 0.50, 0.85] {",
+    "for delay in [0.0, 0.10, 0.30, 0.65, 0.95] {", 1
+)
+if "0.95" not in segment: raise SystemExit("v51: unexpected delayed refresh format")
+segment = segment.replace("self.refreshVideoSurface(reconfigure: true)",
+                          "self.refreshVideoSurface()", 1)
+text = text[:segStart] + segment + text[segEnd:]
+# Only reopen after all surface refreshes finished and UIKit has committed its
+# correct portrait/landscape bounds.
+segStart = text.find("    private func scheduleVideoTrackReopenAfterRotation() {\n")
+segEnd = text.find("    private func selectedVideoTrackID() -> Int64? {\n", segStart)
+if segStart < 0 or segEnd < 0: raise SystemExit("v51: track reopen boundary missing")
+segment = text[segStart:segEnd]
+if "deadline: .now() + 0.32" not in segment:
+    raise SystemExit("v51: expected old rotation delay missing")
+segment = segment.replace("deadline: .now() + 0.32",
+                          "deadline: .now() + 1.10", 1)
+segment = segment.replace("deadline: .now() + 0.08",
+                          "deadline: .now() + 0.12", 1)
+text = text[:segStart] + segment + text[segEnd:]
+METAL.write_text(text)
+
+# 4. SwiftUI: prevent the representable from choosing an intrinsic height from
+# a previously rotated UIViewController. UIKit Metal drawing must fill the
+# currently proposed SwiftUI player area without recreating libmpv.
+text = REPRESENTABLE.read_text()
+anchor = "    func makeUIViewController(context: Context) -> MPVMetalViewController {\n"
+if anchor not in text:
+    raise SystemExit("v51: makeUIViewController method not found")
+if "func sizeThatFits(_ proposal: ProposedViewSize" not in text:
+    text = text.replace(anchor, r'''    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: MPVMetalViewController,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width, let height = proposal.height,
+              width > 1, height > 1 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
+''' + anchor, 1)
+REPRESENTABLE.write_text(text)
+
+# 5. Place the actual Stats/Information BUTTON (not merely its image) beneath
+# Dynamic Island in portrait; moving only the SF Symbol would leave the tap
+# target hidden under the OS cutout.
+text = PLAYER.read_text()
+controls = text.find("    private func controls(size: CGSize) -> some View {\n")
+info = text.find('"info.circle"', controls if controls >= 0 else 0)
+if info < 0:
+    info = text.find('"info.circle.fill"', controls if controls >= 0 else 0)
+if controls < 0 or info < 0:
+    raise SystemExit("v51: PlayerScreen controls/info icon anchor missing")
+button = text.rfind("Button", controls, info)
+if button < 0 or info - button > 900:
+    raise SystemExit("v51: expected information Button not near info icon")
+# Find all consecutive Button closure groups, including } label: {.
+# The insertion point follows the entire Button view, so the hit target moves.
+def closing_brace(text, opening):
+    depth = 0
+    for i in range(opening, len(text)):
+        if text[i] == "{": depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0: return i
+    raise SystemExit("v51: unbalanced Button")
+first = text.find("{", button)
+if first < 0 or first > info:
+    raise SystemExit("v51: unusual info Button")
+end = closing_brace(text, first)
+while True:
+    after = text[end + 1:]
+    nxt = re.match(r"\s*(?:label|role|action)\s*:\s*\{", after)
+    if not nxt: break
+    nextOpen = end + 1 + nxt.end() - 1
+    end = closing_brace(text, nextOpen)
+if end < info:
+    raise SystemExit("v51: found action Button but not info label")
+indent = re.search(r"(?m)^(\s*)\S", text[text.rfind("\n", 0, button) + 1:button + 1])
+# Match Button indentation on its own line (not Image indentation).
+lineStart = text.rfind("\n", 0, button) + 1
+prefix = text[lineStart:button]
+if prefix.strip():
+    raise SystemExit("v51: information Button not leading a line")
+text = text[:end + 1] + "\n" + prefix + \
+    ".offset(y: size.height > size.width ? 48 : 0)" + text[end + 1:]
+PLAYER.write_text(text)
+
+print("v51 cache targets, 1MiB ZIP Range blocks, UIKit-owned Metal resizing, settled track refresh and Dynamic Island control offset applied.")
