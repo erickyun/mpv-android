@@ -20,7 +20,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?branch=agent/ios-torbox&per_page=100" --jq '.workflow_runs | map({id, path, run_number, status, head_branch})')"
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=agent/ios-torbox&per_page=100" --jq '.workflow_runs | map({id, path, run_number, status, head_branch})')"
           echo "$runs" > /tmp/ios-runs.json
           latest="$(jq '[.[] | select(.path == ".github/workflows/release-ios-ytdlp-no-runtime.yml")] | max_by(.run_number) | .id' /tmp/ios-runs.json)"
           if [[ -z "$latest" || "$latest" == "null" ]]; then
