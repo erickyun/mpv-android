@@ -41,6 +41,7 @@ helpers = [
     'fix-ios-ytdl-pornhub-duration-v40.py',
     'fix-ios-zip-playback-v41.py',
     'fix-ios-libarchive-stream-v43.py',
+    'fix-ios-remote-zip-v46.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
