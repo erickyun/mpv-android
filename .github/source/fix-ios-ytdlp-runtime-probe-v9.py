@@ -53,3 +53,5 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
 PROJECT.write_text(project)
 
 print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, direct single-stream playback for YouTube/other sites, and Pornhub-only known-duration EDL. ZIP archive video selection and extraction, and v37 xHamster routing remains reverted.')
+
+# ZIP v41 Swift compile fix: trigger device rebuild.
