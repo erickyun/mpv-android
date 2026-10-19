@@ -39,6 +39,7 @@ helpers = [
     'fix-ios-metal-root-layer-v34.py',
     'fix-ios-metal-watchdog-v35b.py',
     'fix-ios-ytdl-pornhub-duration-v40.py',
+    'fix-ios-zip-playback-v41.py',
 ]
 for name in helpers:
     helper = Path(__file__).with_name(name)
@@ -51,4 +52,4 @@ if 'MARKETING_VERSION: 1.9.0' not in project or 'CURRENT_PROJECT_VERSION: 19' no
     raise SystemExit('MPV iOS 1.9.0 build 19 version markers were not produced')
 PROJECT.write_text(project)
 
-print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, direct single-stream playback for YouTube/other sites, and Pornhub-only known-duration EDL. v37 xHamster routing remains reverted.')
+print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, direct single-stream playback for YouTube/other sites, and Pornhub-only known-duration EDL. ZIP archive video selection and extraction, and v37 xHamster routing remains reverted.')
