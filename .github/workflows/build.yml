@@ -1,8 +1,12 @@
 name: build
 
+# Android CI is not needed for the dedicated iOS development branch.
+# Keep normal push/PR Android builds unchanged on every other branch.
 on:
-  - push
-  - pull_request
+  push:
+    branches-ignore:
+      - agent/ios-torbox
+  pull_request:
 
 jobs:
   linux:
