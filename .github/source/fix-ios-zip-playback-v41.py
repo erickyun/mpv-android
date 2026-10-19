@@ -140,8 +140,8 @@ final class ZIPPlaybackService {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
             if fm.fileExists(atPath: destination.path) { return destination }
 
-            let free = (try? record.root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))
-                ?.volumeAvailableCapacityForImportantUsage
+            let capacity = try? record.root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            let free = capacity?.volumeAvailableCapacityForImportantUsage
             if let free, free < video.size + (64 * 1024 * 1024) {
                 throw ZIPError.lowDiskSpace
             }
