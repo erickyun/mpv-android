@@ -1,0 +1,42 @@
+name: Cancel obsolete iOS queue
+on:
+  push:
+    branches:
+      - agent/ios-torbox
+    paths:
+      - .github/workflows/cancel-obsolete-ios-queue.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Cancel older iOS and unnecessary Android runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?branch=agent/ios-torbox&per_page=100" --jq '.workflow_runs | map({id, path, run_number, status, head_branch})')"
+          echo "$runs" > /tmp/ios-runs.json
+          latest="$(jq '[.[] | select(.path == ".github/workflows/release-ios-ytdlp-no-runtime.yml")] | max_by(.run_number) | .id' /tmp/ios-runs.json)"
+          if [[ -z "$latest" || "$latest" == "null" ]]; then
+            echo "No iOS release run found. Leaving queue unchanged."
+            exit 0
+          fi
+          echo "Preserving latest iOS release run: $latest"
+          jq -r --argjson latest "$latest" '
+            .[] |
+            select(.id != $latest) |
+            select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending") |
+            select(.path == ".github/workflows/release-ios-ytdlp-no-runtime.yml" or
+                   .path == ".github/workflows/build.yml" or
+                   .path == ".github/workflows/ios-swift-source-inspect.yml") |
+            .id' /tmp/ios-runs.json | while read -r run; do
+              echo "Cancelling obsolete run $run"
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/cancel"                 -H "Accept: application/vnd.github+json" || true
+            done
+          echo "Completed obsolete-run cleanup; latest run preserved: $latest"
