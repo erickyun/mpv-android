@@ -62,4 +62,4 @@ PROJECT.write_text(project)
 
 print('Updated MPV iOS 1.9.0 build 19 with generic ytdl-raw-options, Files-visible cookies.txt support, root Metal lifecycle, plain CAMetalLayer watchdog protection, direct single-stream playback for YouTube/other sites, and Pornhub-only known-duration EDL. ZIP archive video selection and extraction, and v37 xHamster routing remains reverted.')
 
-# v54: build 96 MiB ZIP read-ahead and corrected Dynamic Island safe toolbar.
+# v55: corrected conditional UIKit Metal refresh; 96MiB ZIP prefetch with instant startup.
