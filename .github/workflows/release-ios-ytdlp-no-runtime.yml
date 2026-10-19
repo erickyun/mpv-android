@@ -236,6 +236,12 @@ jobs:
               for key, value in expected.items():
                   if info.get(key) != value:
                       raise SystemExit(f'{key}={info.get(key)!r}, expected {value!r}')
+              ats = info.get('NSAppTransportSecurity', {})
+              if ats.get('NSAllowsArbitraryLoads') is not True:
+                  raise SystemExit(f'HTTP ZIP URLs still blocked by ATS: {ats!r}')
+              conflicting = ('NSAllowsArbitraryLoadsForMedia', 'NSAllowsArbitraryLoadsInWebContent', 'NSAllowsLocalNetworking')
+              if any(key in ats for key in conflicting):
+                  raise SystemExit(f'ATS contains keys that override NSAllowsArbitraryLoads: {ats!r}')
               names = archive.namelist()
               if not any(name.lower().endswith('/stats.lua') for name in names):
                   raise SystemExit('stats.lua is missing')
