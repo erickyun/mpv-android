@@ -169,13 +169,13 @@ project.write_text(p)
 # Register the mpv stream handler before mpv_initialize, when custom protocols
 # are accepted. Any URL with the iosarchive scheme is handled by libarchive.
 m=metal.read_text()
-marker="        check(mpv_initialize(context))\n"
-if marker not in m: raise SystemExit("mpv initialize anchor missing")
-m=m.replace(marker,'''        let archiveStatus = MPVArchiveProtocol.register(with: context)
-        if archiveStatus < 0 {
-            print("[libarchive] stream callback registration failed: \(archiveStatus)")
-        }
-'''+marker,1)
+match=re.search(r"(?m)^([ \t]*)([^\n]*mpv_initialize\((\w+)\)[^\n]*)$", m)
+if not match: raise SystemExit("mpv_initialize(...) call not found")
+indent=match.group(1)
+handle=match.group(3)
+registration=indent+"let archiveStatus = MPVArchiveProtocol.register(with: "+handle+")\n"
+registration+=indent+"if archiveStatus < 0 { print(\"[libarchive] protocol registration failed\") }\n"
+m=m[:match.start()]+registration+m[match.start():]
 metal.write_text(m)
 
 # Keep the existing ZIPFoundation picker, but change playback to on-demand
