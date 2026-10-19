@@ -133,49 +133,21 @@ if "func sizeThatFits(_ proposal: ProposedViewSize" not in text:
 ''' + anchor, 1)
 REPRESENTABLE.write_text(text)
 
-# 5. Place the actual Stats/Information BUTTON (not merely its image) beneath
-# Dynamic Island in portrait; moving only the SF Symbol would leave the tap
-# target hidden under the OS cutout.
+# 5. The Info icon is a Menu in the topBar, not an independent Button.
+# Keep the entire toolbar (and every hit target) below Dynamic Island while
+# portrait; landscape should retain the existing compact placement.
 text = PLAYER.read_text()
-controls = text.find("    private func controls(size: CGSize) -> some View {\n")
-info = text.find('"info.circle"', controls if controls >= 0 else 0)
-if info < 0:
-    info = text.find('"info.circle.fill"', controls if controls >= 0 else 0)
-if controls < 0 or info < 0:
-    raise SystemExit("v51: PlayerScreen controls/info icon anchor missing")
-button = text.rfind("Button", controls, info)
-if button < 0 or info - button > 900:
-    raise SystemExit("v51: expected information Button not near info icon")
-# Find all consecutive Button closure groups, including } label: {.
-# The insertion point follows the entire Button view, so the hit target moves.
-def closing_brace(text, opening):
-    depth = 0
-    for i in range(opening, len(text)):
-        if text[i] == "{": depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0: return i
-    raise SystemExit("v51: unbalanced Button")
-first = text.find("{", button)
-if first < 0 or first > info:
-    raise SystemExit("v51: unusual info Button")
-end = closing_brace(text, first)
-while True:
-    after = text[end + 1:]
-    nxt = re.match(r"\s*(?:label|role|action)\s*:\s*\{", after)
-    if not nxt: break
-    nextOpen = end + 1 + nxt.end() - 1
-    end = closing_brace(text, nextOpen)
-if end < info:
-    raise SystemExit("v51: found action Button but not info label")
-indent = re.search(r"(?m)^(\s*)\S", text[text.rfind("\n", 0, button) + 1:button + 1])
-# Match Button indentation on its own line (not Image indentation).
-lineStart = text.rfind("\n", 0, button) + 1
-prefix = text[lineStart:button]
-if prefix.strip():
-    raise SystemExit("v51: information Button not leading a line")
-text = text[:end + 1] + "\n" + prefix + \
-    ".offset(y: size.height > size.width ? 48 : 0)" + text[end + 1:]
-PLAYER.write_text(text)
+anchor = '''    private func controls(size: CGSize) -> some View {
+        VStack(spacing: 0) {
+            topBar
+'''
+replacement = '''    private func controls(size: CGSize) -> some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.top, size.height > size.width ? 48 : 0)
+'''
+if anchor not in text:
+    raise SystemExit("v51: PlayerScreen topBar placement anchor missing")
+PLAYER.write_text(text.replace(anchor, replacement, 1))
 
-print("v51 cache targets, 1MiB ZIP Range blocks, UIKit-owned Metal resizing, settled track refresh and Dynamic Island control offset applied.")
+print("v51 cache targets, 1MiB ZIP Range blocks, UIKit-owned Metal resizing, settled track refresh and portrait safe-area toolbar placement applied.")
